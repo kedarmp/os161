@@ -148,13 +148,23 @@ lock_create(const char *name)
 		return NULL;
 	}
 
+	// add stuff here as needed
+
 	lock->lk_name = kstrdup(name);
 	if (lock->lk_name == NULL) {
 		kfree(lock);
 		return NULL;
 	}
 
-	// add stuff here as needed
+	lock->lock_wchan = wchan_create(lock->lk_name);
+	if(lock->lock_wchan == NULL) {
+		kfree(lock->lk_name);
+		kfree(lock);
+		return NULL;
+	}
+	lock->lock_thread = NULL;
+	spinlock_init(&lock->lock_spinlock);
+	lock->lock_count = 1;
 
 	return lock;
 }
@@ -165,7 +175,9 @@ lock_destroy(struct lock *lock)
 	KASSERT(lock != NULL);
 
 	// add stuff here as needed
-
+	KASSERT(lock->lock_thread == NULL);
+	spinlock_cleanup(&lock->lock_spinlock);
+	wchan_destroy(lock->lock_wchan);
 	kfree(lock->lk_name);
 	kfree(lock);
 }
@@ -175,7 +187,17 @@ lock_acquire(struct lock *lock)
 {
 	// Write this
 
-	(void)lock;  // suppress warning until code gets written
+	//(void)lock;  // suppress warning until code gets written
+	KASSERT(lock != NULL);
+	KASSERT(curthread->t_in_interrupt == false);
+	spinlock_acquire(&lock->lock_spinlock);
+	while(lock->lock_count == 0) {
+		wchan_sleep(lock->lock_wchan, &lock->lock_spinlock);
+	}
+	KASSERT(lock->lock_count > 0);
+	lock->lock_count = 0;
+	lock->lock_thread = curthread;
+	spinlock_release(&lock->lock_spinlock);
 }
 
 void
@@ -183,17 +205,24 @@ lock_release(struct lock *lock)
 {
 	// Write this
 
-	(void)lock;  // suppress warning until code gets written
+	//(void)lock;  // suppress warning until code gets written
+	KASSERT(lock != NULL);
+	spinlock_acquire(&lock->lock_spinlock);
+	KASSERT(lock_do_i_hold(lock));
+	lock->lock_count = 1;
+	lock->lock_thread = NULL;
+	//kfree(lock->lock_thread_name);
+	wchan_wakeone(lock->lock_wchan, &lock->lock_spinlock);
+	spinlock_release(&lock->lock_spinlock);
 }
 
 bool
 lock_do_i_hold(struct lock *lock)
 {
 	// Write this
-
-	(void)lock;  // suppress warning until code gets written
-
-	return true; // dummy until code gets written
+	KASSERT(lock!=NULL);
+	//(void)lock;  // suppress warning until code gets written
+	return (curthread == lock->lock_thread);
 }
 
 ////////////////////////////////////////////////////////////
