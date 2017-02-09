@@ -40,6 +40,8 @@
 #include <current.h>
 #include <synch.h>
 
+//REMOVE - @kedar: 
+#include <cpu.h>
 ////////////////////////////////////////////////////////////
 //
 // Semaphore.
@@ -185,14 +187,14 @@ lock_destroy(struct lock *lock)
 void
 lock_acquire(struct lock *lock)
 {
+	// Write this
 
+	//(void)lock;  // suppress warning until code gets written
 	KASSERT(lock != NULL);
 	KASSERT(curthread->t_in_interrupt == false);
 	//added on 2/7: if we already have a lock, no need to do anything
 	if(lock_do_i_hold(lock))
-	{
 		return;
-	}
 	spinlock_acquire(&lock->lock_spinlock);
 	while(lock->lock_count == 0) {
 		wchan_sleep(lock->lock_wchan, &lock->lock_spinlock);
@@ -206,13 +208,16 @@ lock_acquire(struct lock *lock)
 void
 lock_release(struct lock *lock)
 {
+	// Write this
 
+	//(void)lock;  // suppress warning until code gets written
 	KASSERT(lock != NULL);
 	//if we dont hold this lock, no point proceeding
 	KASSERT(lock_do_i_hold(lock));//moved this line ABOVE spinlock acq 2/7
 	spinlock_acquire(&lock->lock_spinlock);
 	lock->lock_count = 1;
 	lock->lock_thread = NULL;
+	//kfree(lock->lock_thread_name);
 	wchan_wakeone(lock->lock_wchan, &lock->lock_spinlock);
 	spinlock_release(&lock->lock_spinlock);
 }
@@ -220,7 +225,9 @@ lock_release(struct lock *lock)
 bool
 lock_do_i_hold(struct lock *lock)
 {
+	// Write this
 	KASSERT(lock!=NULL);
+	//(void)lock;  // suppress warning until code gets written
 	return (curthread == lock->lock_thread);
 }
 
@@ -272,33 +279,46 @@ cv_destroy(struct cv *cv)
 void
 cv_wait(struct cv *cv, struct lock *lock)
 {
-	KASSERT(lock!=NULL);
 	KASSERT(lock_do_i_hold(lock));
-	spinlock_acquire(&cv->cv_spinlock);
+	//spinlock_acquire(&cv->cv_spinlock);
 	lock_release(lock);
+	kprintf("will sleep\n");
+	spinlock_acquire(&cv->cv_spinlock);
+	kprintf("spinlock acquired\n");
 	wchan_sleep(cv->cv_wc,&cv->cv_spinlock);
+	kprintf("Sleep(awoke), do i hold spinlock:%d\n",spinlock_do_i_hold(&cv->cv_spinlock));
 	spinlock_release(&cv->cv_spinlock);
+	kprintf("spinlock released\n");
 	lock_acquire(lock);
-
+	kprintf("lock acquired\n");
+	kprintf("do_i_hold:%d\n",spinlock_do_i_hold(&cv->cv_spinlock));
+	//spinlock_release(&cv->cv_spinlock);
 }
 
 void
 cv_signal(struct cv *cv, struct lock *lock)
 {
-	KASSERT(lock!=NULL);
+	kprintf("CV_SIGNAL CALLED\n");
 	KASSERT(lock_do_i_hold(lock));
+//	lock_acquire(lock);
 	spinlock_acquire(&cv->cv_spinlock);
-	wchan_wakeone(cv->cv_wc,&cv->cv_spinlock);
+	kprintf("SPINLOCK ACQUIRED\n");
+	 wchan_wakeone(cv->cv_wc,&cv->cv_spinlock);
+	kprintf("AWOKE ONE\n");
+	//lock_release(lock);	calling api should release this lock, we dont care
 	spinlock_release(&cv->cv_spinlock);
+	kprintf("SPINLOCK RELEASED\n");
+//	lock_release(lock);
 }
 
 void
 cv_broadcast(struct cv *cv, struct lock *lock)
 {
-	KASSERT(lock!=NULL);
+	kprintf("cv_broascast called\n");
 	KASSERT(lock_do_i_hold(lock));
 	spinlock_acquire(&cv->cv_spinlock);
-	wchan_wakeall(cv->cv_wc,&cv->cv_spinlock);	
+	 wchan_wakeall(cv->cv_wc,&cv->cv_spinlock);
+//	lock_release(lock);	
 	spinlock_release(&cv->cv_spinlock);
 
 }
