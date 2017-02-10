@@ -60,7 +60,8 @@ whalemating_cleanup() {
 void
 male(uint32_t index)
 {
-	(void)index;
+//	(void)index;
+kprintf("male(%d) called",index);
 	/*
 	 * Implement this function by calling male_start and male_end when
 	 * appropriate.
@@ -71,7 +72,8 @@ male(uint32_t index)
 void
 female(uint32_t index)
 {
-	(void)index;
+//	(void)index;
+kprintf("female(%d) called",index);
 	/*
 	 * Implement this function by calling female_start and female_end when
 	 * appropriate.
@@ -82,7 +84,8 @@ female(uint32_t index)
 void
 matchmaker(uint32_t index)
 {
-	(void)index;
+//	(void)index;
+kprintf("matchmaker(%d) called",index);
 	/*
 	 * Implement this function by calling matchmaker_start and matchmaker_end
 	 * when appropriate.

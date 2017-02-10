@@ -338,8 +338,8 @@ rwlock_create(const char *name)
 	}
 
 	spinlock_init(&rwlock->rw_spinlock);
-	reader_count = 0;
-	writer_count = 0;
+	rwlock->reader_count = 0;
+	rwlock->writer_count = 0;
 	return rwlock;
 }
 
@@ -353,15 +353,15 @@ rwlock_destroy(struct rwlock *rwlock)
 	spinlock_cleanup(&rwlock->rw_spinlock);
 	wchan_destroy(rwlock->reader_wchan);
 	wchan_destroy(rwlock->writer_wchan);
-	kfree(cv);
+	kfree(rwlock);
 }
 
 void rwlock_acquire_read(struct rwlock *rwlock)
 {
 	spinlock_acquire(&rwlock->rw_spinlock);
-	if(writer_count == 0)
+	if(rwlock->writer_count == 0)
 	{
-		reader_count++;
+		rwlock->reader_count++;
 	}
 	else
 	{
@@ -373,9 +373,9 @@ void rwlock_acquire_read(struct rwlock *rwlock)
 void rwlock_release_read(struct rwlock *rwlock)
 {
 	spinlock_acquire(&rwlock->rw_spinlock);
-	KASSERT(reader_count!=0);
-	reader_count--;
-	if(reader_count == 0)
+	KASSERT(rwlock->reader_count!=0);
+	rwlock->reader_count--;
+	if(rwlock->reader_count == 0)
 	{
 		wchan_wakeall(rwlock->writer_wchan, &rwlock->rw_spinlock);
 		wchan_wakeall(rwlock->reader_wchan, &rwlock->rw_spinlock);
@@ -386,9 +386,9 @@ void rwlock_release_read(struct rwlock *rwlock)
 void rwlock_acquire_write(struct rwlock *rwlock)
 {
 	spinlock_acquire(&rwlock->rw_spinlock);
-	if(reader_count == 0 && writer_count != 1)
+	if(rwlock->reader_count == 0 && rwlock->writer_count != 1)
 	{
-		writer_count = 1;
+		rwlock->writer_count = 1;
 	}
 	else
 	{
@@ -400,9 +400,9 @@ void rwlock_acquire_write(struct rwlock *rwlock)
 void rwlock_release_write(struct rwlock *rwlock)
 {
 	spinlock_acquire(&rwlock->rw_spinlock);
-	KASSERT(writer_count==0);
-	writer_count = 0;
-	if(writer_count == 0)
+	KASSERT(rwlock->writer_count==0);
+	rwlock->writer_count = 0;
+	if(rwlock->writer_count == 0)
 	{
 		wchan_wakeall(rwlock->reader_wchan, &rwlock->rw_spinlock);
 		wchan_wakeall(rwlock->writer_wchan, &rwlock->rw_spinlock);
