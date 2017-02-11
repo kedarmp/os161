@@ -44,17 +44,17 @@
  * Called by the driver during initialization.
  */
 
-struct semaphore *malesem;
-struct semaphore *femalesem;
-struct semaphore *matchsem;
-//struct spinlock wh_splock;
+
+struct cv *malecv;
+struct cv *femalecv;
+struct cv *matchcv;
+struct lock *lock;
 	
 void whalemating_init() {
-	malesem = sem_create("male",0);	
-	femalesem = sem_create("female",0);
-	matchsem = sem_create("match",1);
-	//spinlock_init(&wh_splock);
-	return;
+	malecv = cv_create("male");
+	femalecv = cv_create("female");
+	matchcv = cv_create("match");
+	lock = lock_create("lock");
 }
 
 /*
@@ -63,48 +63,43 @@ void whalemating_init() {
 
 void
 whalemating_cleanup() {
-	sem_destroy(malesem);
-	sem_destroy(femalesem);
-	sem_destroy(matchsem);
-	//spinlock_cleanup(&wh_splock);
-	return;
+	cv_destroy(malecv);
+	cv_destroy(femalecv);
+	cv_destroy(matchcv);
+	lock_destroy(lock);
 }
 
 void
 male(uint32_t index)
 {
-	kprintf("male(%d)called ",index);
-	//spinlock_acquire(&wh_splock);
 	male_start(index);
-	P(malesem);
-	//male_start(index);	
+	lock_acquire(lock);
+	cv_wait(malecv,lock);
+	lock_release(lock);
 	male_end(index);
-	//spinlock_release(&wh_splock);
-	return;
 }
 
 void
 female(uint32_t index)
 {
-	kprintf(" female(%d)called ",index);
 	//spinlock_acquire(&wh_splock);
 	female_start(index);
-	P(femalesem);
-	//female_start(index);
+	lock_acquire(lock);
+	cv_wait(femalecv, lock);
+	lock_release(lock);	
 	female_end(index);
 	//spinlock_release(&wh_splock);
-	return;
 }
 
 void
 matchmaker(uint32_t index)
 {
-	kprintf(" matchmaker(%d)called ",index);
-	//spinlock_acquire(&wh_splock);
 	matchmaker_start(index);
-	V(malesem);
-	V(femalesem);
+	lock_acquire(lock);
+	cv_signal(malecv,lock);
+	cv_signal(femalecv,lock);
+	cv_signal(matchcv,lock);
+	lock_release(lock);	
 	matchmaker_end(index);
-	V(matchsem);
 	//spinlock_release(&wh_splock);	
 }
