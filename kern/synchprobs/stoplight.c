@@ -67,14 +67,23 @@
 #include <lib.h>
 #include <thread.h>
 #include <test.h>
+//#include <stdlib.h>
 #include <synch.h>
 
 /*
  * Called by the driver during initialization.
  */
 
+struct lock *lock_quad[4];
+int absolute(int n);
+struct semaphore *maxcars;
 void
 stoplight_init() {
+	lock_quad[0] = lock_create("lock0"); 
+	lock_quad[1] = lock_create("lock1"); 
+	lock_quad[2] = lock_create("lock2"); 
+	lock_quad[3] = lock_create("lock3"); 
+	maxcars = sem_create("max",3);
 	return;
 }
 
@@ -83,14 +92,24 @@ stoplight_init() {
  */
 
 void stoplight_cleanup() {
+	lock_destroy(lock_quad[0]);
+	lock_destroy(lock_quad[1]);
+	lock_destroy(lock_quad[2]);
+	lock_destroy(lock_quad[3]);
+	sem_destroy(maxcars);
 	return;
 }
 
 void
 turnright(uint32_t direction, uint32_t index)
-{
-	(void)direction;
-	(void)index;
+
+{	kprintf("Car %d will go right\n",index);
+	P(maxcars);
+	lock_acquire(lock_quad[direction]);
+	inQuadrant(direction,index);
+	leaveIntersection(index);
+	lock_release(lock_quad[direction]);
+	V(maxcars);
 	/*
 	 * Implement this function.
 	 */
@@ -98,10 +117,24 @@ turnright(uint32_t direction, uint32_t index)
 }
 void
 gostraight(uint32_t direction, uint32_t index)
-{
-	(void)direction;
-	(void)index;
-	/*
+	
+{	kprintf("Car %d will go straight\n",index);
+	uint32_t new_direction;
+	P(maxcars);
+	lock_acquire(lock_quad[direction]);
+
+	inQuadrant(direction, index);
+	new_direction = (direction-1)%4;
+	
+	lock_acquire(lock_quad[new_direction]);
+	inQuadrant(new_direction,index);
+	lock_release(lock_quad[direction]);
+	leaveIntersection(index);
+	lock_release(lock_quad[new_direction]);
+	V(maxcars);
+	
+		
+/*
 	 * Implement this function.
 	 */
 	return;
@@ -109,10 +142,36 @@ gostraight(uint32_t direction, uint32_t index)
 void
 turnleft(uint32_t direction, uint32_t index)
 {
-	(void)direction;
-	(void)index;
-	/*
+	kprintf("Car %d will go left\n",index);
+	uint32_t new_direction;
+	P(maxcars);
+	lock_acquire(lock_quad[direction]);
+	inQuadrant(direction,index);
+	new_direction = ((direction-1))%4;
+	lock_acquire(lock_quad[new_direction]);
+	inQuadrant(new_direction,index);
+	lock_release(lock_quad[direction]);
+	direction = ((new_direction-1))%4;
+	lock_acquire(lock_quad[direction]);
+	inQuadrant(direction,index);
+	lock_release(lock_quad[new_direction]);
+	leaveIntersection(index);
+	lock_release(lock_quad[direction]);
+	V(maxcars);
+
+
+
+
+	
+/*
 	 * Implement this function.
 	 */
 	return;
+}
+
+int absolute(int n) {
+	if(n<0)
+	return (n-(2*n));
+	return n;
+
 }
