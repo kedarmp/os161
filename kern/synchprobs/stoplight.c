@@ -169,9 +169,4 @@ turnleft(uint32_t direction, uint32_t index)
 	return;
 }
 
-int absolute(int n) {
-	if(n<0)
-	return (n-(2*n));
-	return n;
 
-}
