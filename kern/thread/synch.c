@@ -330,103 +330,150 @@ cv_broadcast(struct cv *cv, struct lock *lock)
 
 struct rwlock *
 rwlock_create(const char *name)
-{
+{	
 	struct rwlock *rwlock;
-
 	rwlock = kmalloc(sizeof(*rwlock));
-	if (rwlock == NULL) {
+	if(rwlock == NULL)
 		return NULL;
-	}
-
 	rwlock->rwlock_name = kstrdup(name);
-	if (rwlock->rwlock_name==NULL) {
+	if(rwlock->rwlock_name == NULL) {
 		kfree(rwlock);
 		return NULL;
 	}
-
-	// add stuff here as needed
-	rwlock->reader_wchan = wchan_create(name);
-	if(rwlock->reader_wchan == NULL) {
-		kfree(rwlock->rwlock_name);
-		kfree(rwlock);
-	}
-
-	rwlock->writer_wchan = wchan_create(name);
-	if(rwlock->writer_wchan == NULL) {
-		//destroy previous wait channel , yet to be done 
-		kfree(rwlock->rwlock_name);
-		kfree(rwlock);
-	}
-
-	spinlock_init(&rwlock->rw_spinlock);
-	rwlock->reader_count = 0;
-	rwlock->writer_count = 0;
+	rwlock->block = sem_create("block", 0);
+	rwlock->ex = sem_create("ex", 1);
+	rwlock->lock1 = lock_create("lock1");
+	rwlock->lock3 = lock_create("lock3");
+	rwlock->lock4 = lock_create("lock4");
+	rwlock->lock5 = lock_create("lock5");
+	rwlock->reader_count = rwlock->pending_r = rwlock->pending_w = rwlock->writer = 0;
 	return rwlock;
 }
+
 
 void
 rwlock_destroy(struct rwlock *rwlock)
 {
-	KASSERT(rwlock != NULL);
+	KASSERT(rwlock!=NULL);
 	KASSERT(rwlock->reader_count == 0);
-	KASSERT(rwlock->writer_count == 0);
-	
-	spinlock_cleanup(&rwlock->rw_spinlock);
-	wchan_destroy(rwlock->reader_wchan);
-	wchan_destroy(rwlock->writer_wchan);
-	kfree(rwlock);
+	KASSERT(rwlock->pending_r == 0);
+	KASSERT(rwlock->pending_w == 0);
+	KASSERT(rwlock->writer == 1);
+	kfree(rwlock->rwlock_name);
+	lock_destroy(rwlock->lock1);
+	lock_destroy(rwlock->lock3);
+	lock_destroy(rwlock->lock4);
+	lock_destroy(rwlock->lock5);
+	sem_destroy(rwlock->ex);
+	sem_destroy(rwlock->block);
 }
 
 void rwlock_acquire_read(struct rwlock *rwlock)
 {
-	spinlock_acquire(&rwlock->rw_spinlock);
-	if(rwlock->writer_count == 0)
-	{
-		rwlock->reader_count++;
+	//local copies for atomicity
+	int local_writer,local_pending_w;
+	lock_acquire(rwlock->lock1);
+	local_writer = rwlock->writer;
+	lock_release(rwlock->lock1);
+	
+	lock_acquire(rwlock->lock5);
+	local_pending_w = rwlock->pending_w;
+	lock_release(rwlock->lock5);
+	
+	if(local_writer == 1) {	//one writer is writing currently
+		
+		lock_acquire(rwlock->lock4);
+		rwlock->pending_r = rwlock->pending_r + 1;
+		lock_release(rwlock->lock4);
+		P(rwlock->block);
+		//begin block
+		lock_acquire(rwlock->lock3);
+		if(rwlock->reader_count==0) {
+			P(rwlock->ex);
+			rwlock->reader_count = 1;
+		}
+		lock_release(rwlock->lock3);
+		//decrease pending readers by 1
+		lock_acquire(rwlock->lock4);
+		rwlock->pending_r = rwlock->pending_r - 1;
+		lock_release(rwlock->lock4);
+		//increment reader count
+		lock_acquire(rwlock->lock3);
+		rwlock->reader_count = rwlock->reader_count + 1;
+		lock_release(rwlock->lock3);
+
+		
+		//end block
+		
 	}
-	else
-	{
-		wchan_sleep(rwlock->reader_wchan, &rwlock->rw_spinlock);
+	else if(local_pending_w>0){	//there is at least one writer waiting to write
+
+		P(rwlock->block);
+		//begin block
+		lock_acquire(rwlock->lock3);
+		if(rwlock->reader_count==0) {
+			P(rwlock->ex);
+			rwlock->reader_count = 1;
+		}
+		lock_release(rwlock->lock3);
+		
+		//decrease pending readers by 1
+		lock_acquire(rwlock->lock4);
+		rwlock->pending_r = rwlock->pending_r - 1;
+		lock_release(rwlock->lock4);
+		//increment reader count
+		lock_acquire(rwlock->lock3);
+		rwlock->reader_count = rwlock->reader_count + 1;
+		lock_release(rwlock->lock3);
+		//end block
 	}
-	spinlock_release(&rwlock->rw_spinlock);
+	else {			//there are no writers at all
+		P(rwlock->ex);
+		lock_acquire(rwlock->lock3);
+		rwlock->reader_count = rwlock->reader_count + 1;
+		lock_release(rwlock->lock3);
+		
+	}
 }
 
 void rwlock_release_read(struct rwlock *rwlock)
 {
-	spinlock_acquire(&rwlock->rw_spinlock);
-	KASSERT(rwlock->reader_count!=0);
-	rwlock->reader_count--;
-	if(rwlock->reader_count == 0)
-	{
-		wchan_wakeall(rwlock->writer_wchan, &rwlock->rw_spinlock);
-		wchan_wakeall(rwlock->reader_wchan, &rwlock->rw_spinlock);
-	}
-	spinlock_release(&rwlock->rw_spinlock);
+	
+	lock_acquire(rwlock->lock3);
+	rwlock->reader_count = rwlock->reader_count - 1;
+	if(rwlock->reader_count==0)	//free ex. If there's a writer waiting, it can go ahead
+		V(rwlock->ex);
+	lock_release(rwlock->lock3);
 }
 
 void rwlock_acquire_write(struct rwlock *rwlock)
 {
-	spinlock_acquire(&rwlock->rw_spinlock);
-	if(rwlock->reader_count == 0 && rwlock->writer_count != 1)
-	{
-		rwlock->writer_count = 1;
-	}
-	else
-	{
-		wchan_sleep(rwlock->writer_wchan, &rwlock->rw_spinlock);
-	}
-	spinlock_release(&rwlock->rw_spinlock);
+	//increment pending writers
+	lock_acquire(rwlock->lock5);
+	rwlock->pending_w = rwlock->pending_w + 1;
+	lock_release(rwlock->lock5);
+	//wait for all readers to leave
+	P(rwlock->ex);
+	//decrement pending writers
+	lock_acquire(rwlock->lock5);
+	rwlock->pending_w = rwlock->pending_w - 1;
+	lock_release(rwlock->lock5);
+	//set writer = 1; means there is one live writer(used by readers)
+	lock_acquire(rwlock->lock1);
+	rwlock->writer = 1;
+	lock_release(rwlock->lock1);
+	
 }
 
+#define MAX_READER_BACKLOG 2
 void rwlock_release_write(struct rwlock *rwlock)
 {
-	spinlock_acquire(&rwlock->rw_spinlock);
-	KASSERT(rwlock->writer_count==0);
-	rwlock->writer_count = 0;
-	if(rwlock->writer_count == 0)
-	{
-		wchan_wakeall(rwlock->reader_wchan, &rwlock->rw_spinlock);
-		wchan_wakeall(rwlock->writer_wchan, &rwlock->rw_spinlock);
+	int i=0;
+	lock_acquire(rwlock->lock4);
+	if(rwlock->pending_r > MAX_READER_BACKLOG)	{ //release MAX_READER_BACKLOG threads
+		for(i=0;i<MAX_READER_BACKLOG;i++)
+			V(rwlock->block);
 	}
-	spinlock_release(&rwlock->rw_spinlock);
+	lock_release(rwlock->lock4);
 }
+
