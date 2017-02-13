@@ -358,7 +358,7 @@ rwlock_destroy(struct rwlock *rwlock)
 	KASSERT(rwlock->reader_count == 0);
 	KASSERT(rwlock->pending_r == 0);
 	KASSERT(rwlock->pending_w == 0);
-	KASSERT(rwlock->writer == 1);
+	KASSERT(rwlock->writer == 0);
 	kfree(rwlock->rwlock_name);
 	lock_destroy(rwlock->lock1);
 	lock_destroy(rwlock->lock3);
@@ -371,6 +371,7 @@ rwlock_destroy(struct rwlock *rwlock)
 void rwlock_acquire_read(struct rwlock *rwlock)
 {
 	//local copies for atomicity
+	KASSERT(rwlock!=NULL);
 	int local_writer,local_pending_w;
 	lock_acquire(rwlock->lock1);
 	local_writer = rwlock->writer;
@@ -439,6 +440,7 @@ void rwlock_acquire_read(struct rwlock *rwlock)
 void rwlock_release_read(struct rwlock *rwlock)
 {
 	
+	KASSERT(rwlock!=NULL);
 	lock_acquire(rwlock->lock3);
 	rwlock->reader_count = rwlock->reader_count - 1;
 	if(rwlock->reader_count==0)	//free ex. If there's a writer waiting, it can go ahead
@@ -448,6 +450,7 @@ void rwlock_release_read(struct rwlock *rwlock)
 
 void rwlock_acquire_write(struct rwlock *rwlock)
 {
+	KASSERT(rwlock!=NULL);
 	//increment pending writers
 	lock_acquire(rwlock->lock5);
 	rwlock->pending_w = rwlock->pending_w + 1;
@@ -468,6 +471,7 @@ void rwlock_acquire_write(struct rwlock *rwlock)
 #define MAX_READER_BACKLOG 2
 void rwlock_release_write(struct rwlock *rwlock)
 {
+	KASSERT(rwlock!=NULL);
 	int i=0;
 	lock_acquire(rwlock->lock4);
 	if(rwlock->pending_r > MAX_READER_BACKLOG)	{ //release MAX_READER_BACKLOG threads
@@ -475,5 +479,10 @@ void rwlock_release_write(struct rwlock *rwlock)
 			V(rwlock->block);
 	}
 	lock_release(rwlock->lock4);
+	lock_acquire(rwlock->lock1);
+	rwlock->writer = 0;
+	lock_release(rwlock->lock1);
+
+	V(rwlock->ex);
 }
 
