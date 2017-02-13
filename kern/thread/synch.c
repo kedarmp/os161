@@ -328,6 +328,9 @@ cv_broadcast(struct cv *cv, struct lock *lock)
 //////////////////////////////////////////////////////////
 // Reader Writer 
 
+#define MAX_READER_BACKLOG 5
+#define WRITER_THRESHOLD 2
+
 struct rwlock *
 rwlock_create(const char *name)
 {	
@@ -390,6 +393,7 @@ void rwlock_acquire_read(struct rwlock *rwlock)
 		//begin block
 		lock_acquire(rwlock->lock3);
 		if(rwlock->reader_count==0) {
+			kprintf("Yes, was zero at  point 1\n");
 			P(rwlock->ex);
 			rwlock->reader_count = 1;
 		}
@@ -407,12 +411,13 @@ void rwlock_acquire_read(struct rwlock *rwlock)
 		//end block
 		
 	}
-	else if(local_pending_w>0){	//there is at least one writer waiting to write
+	else if(local_pending_w>WRITER_THRESHOLD){	//there is at least one writer waiting to write
 
 		P(rwlock->block);
 		//begin block
 		lock_acquire(rwlock->lock3);
 		if(rwlock->reader_count==0) {
+			kprintf("Yes, was zero at some point 2\n");
 			P(rwlock->ex);
 			rwlock->reader_count = 1;
 		}
@@ -468,7 +473,6 @@ void rwlock_acquire_write(struct rwlock *rwlock)
 	
 }
 
-#define MAX_READER_BACKLOG 2
 void rwlock_release_write(struct rwlock *rwlock)
 {
 	KASSERT(rwlock!=NULL);
