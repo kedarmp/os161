@@ -83,7 +83,7 @@ stoplight_init() {
 	lock_quad[1] = lock_create("lock1"); 
 	lock_quad[2] = lock_create("lock2"); 
 	lock_quad[3] = lock_create("lock3"); 
-	maxcars = sem_create("max",4);
+	maxcars = sem_create("max",1);
 	return;
 }
 
@@ -104,12 +104,10 @@ void
 turnright(uint32_t direction, uint32_t index)
 
 {	kprintf("Car %d will go right\n",index);
-	P(maxcars);
 	lock_acquire(lock_quad[direction]);
 	inQuadrant(direction,index);
 	leaveIntersection(index);
 	lock_release(lock_quad[direction]);
-	V(maxcars);
 	/*
 	 * Implement this function.
 	 */
@@ -118,21 +116,20 @@ turnright(uint32_t direction, uint32_t index)
 void
 gostraight(uint32_t direction, uint32_t index)
 	
-{	kprintf("Car %d will go straight\n",index);
+{	P(maxcars);
+	kprintf("Car %d will go straight\n",index);
 	uint32_t new_direction;
-	P(maxcars);
 	lock_acquire(lock_quad[direction]);
+	new_direction = (direction-1)%4;
+	lock_acquire(lock_quad[new_direction]);
 
 	inQuadrant(direction, index);
-	new_direction = (direction-1)%4;
 	
-	lock_acquire(lock_quad[new_direction]);
 	inQuadrant(new_direction,index);
-	lock_release(lock_quad[direction]);
 	leaveIntersection(index);
+	lock_release(lock_quad[direction]);
 	lock_release(lock_quad[new_direction]);
 	V(maxcars);
-	
 		
 /*
 	 * Implement this function.
@@ -142,23 +139,25 @@ gostraight(uint32_t direction, uint32_t index)
 void
 turnleft(uint32_t direction, uint32_t index)
 {
-	kprintf("Car %d will go left\n",index);
-	uint32_t new_direction;
 	P(maxcars);
+	kprintf("Car %d will go left\n",index);
+	uint32_t new_direction,intermediate_direction;
+
+	intermediate_direction = ((direction-1))%4;
+	new_direction = ((intermediate_direction-1))%4;
+
+
 	lock_acquire(lock_quad[direction]);
-	inQuadrant(direction,index);
-	new_direction = ((direction-1))%4;
+	lock_acquire(lock_quad[intermediate_direction]);
 	lock_acquire(lock_quad[new_direction]);
-	inQuadrant(new_direction,index);
-	lock_release(lock_quad[direction]);
-	direction = ((new_direction-1))%4;
-	lock_acquire(lock_quad[direction]);
 	inQuadrant(direction,index);
-	lock_release(lock_quad[new_direction]);
+	inQuadrant(intermediate_direction,index);
+	inQuadrant(new_direction,index);
 	leaveIntersection(index);
 	lock_release(lock_quad[direction]);
+	lock_release(lock_quad[intermediate_direction]);
+	lock_release(lock_quad[new_direction]);
 	V(maxcars);
-
 
 
 
