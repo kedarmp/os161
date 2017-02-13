@@ -83,7 +83,7 @@ stoplight_init() {
 	lock_quad[1] = lock_create("lock1"); 
 	lock_quad[2] = lock_create("lock2"); 
 	lock_quad[3] = lock_create("lock3"); 
-	maxcars = sem_create("max",3);
+	maxcars = sem_create("max",4);
 	return;
 }
 
