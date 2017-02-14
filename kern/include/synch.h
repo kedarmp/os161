@@ -158,7 +158,7 @@ struct rwlock {
         char *rwlock_name;
         volatile unsigned int reader_count, pending_r, pending_w, writer;
 	struct semaphore *ex, *block;
-	struct lock *lock1,*lock3,*lock4,*lock5;
+	struct spinlock splock;
        // (don't forget to mark things volatile as needed)
 
 };

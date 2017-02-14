@@ -345,10 +345,7 @@ rwlock_create(const char *name)
 	}
 	rwlock->block = sem_create("block", 0);
 	rwlock->ex = sem_create("ex", 1);
-	rwlock->lock1 = lock_create("lock1");
-	rwlock->lock3 = lock_create("lock3");
-	rwlock->lock4 = lock_create("lock4");
-	rwlock->lock5 = lock_create("lock5");
+	spinlock_init(&rwlock->splock);
 	rwlock->reader_count = rwlock->pending_r = rwlock->pending_w = rwlock->writer = 0;
 	return rwlock;
 }
@@ -363,81 +360,74 @@ rwlock_destroy(struct rwlock *rwlock)
 	KASSERT(rwlock->pending_w == 0);
 	KASSERT(rwlock->writer == 0);
 	kfree(rwlock->rwlock_name);
-	lock_destroy(rwlock->lock1);
-	lock_destroy(rwlock->lock3);
-	lock_destroy(rwlock->lock4);
-	lock_destroy(rwlock->lock5);
+	spinlock_cleanup(&rwlock->splock);
 	sem_destroy(rwlock->ex);
 	sem_destroy(rwlock->block);
 }
 
 void rwlock_acquire_read(struct rwlock *rwlock)
-{
+{	int didgo=-1;
 	//local copies for atomicity
 	KASSERT(rwlock!=NULL);
-	int local_writer,local_pending_w;
-	lock_acquire(rwlock->lock1);
-	local_writer = rwlock->writer;
-	lock_release(rwlock->lock1);
-	
-	lock_acquire(rwlock->lock5);
-	local_pending_w = rwlock->pending_w;
-	lock_release(rwlock->lock5);
-	
-	if(local_writer == 1) {	//one writer is writing currently
+	spinlock_acquire(&rwlock->splock);
+	rwlock->pending_r = rwlock->pending_r + 1;
 		
-		lock_acquire(rwlock->lock4);
-		rwlock->pending_r = rwlock->pending_r + 1;
-		lock_release(rwlock->lock4);
+	if(rwlock->writer == 1) {	//one writer is writing currently
+		didgo = 1;
+		spinlock_release(&rwlock->splock);
 		P(rwlock->block);
-		//begin block
-		lock_acquire(rwlock->lock3);
-		if(rwlock->reader_count==0) {
-			kprintf("Yes, was zero at  point 1\n");
-			P(rwlock->ex);
-			rwlock->reader_count = 1;
-		}
-		lock_release(rwlock->lock3);
-		//decrease pending readers by 1
-		lock_acquire(rwlock->lock4);
-		rwlock->pending_r = rwlock->pending_r - 1;
-		lock_release(rwlock->lock4);
-		//increment reader count
-		lock_acquire(rwlock->lock3);
-		rwlock->reader_count = rwlock->reader_count + 1;
-		lock_release(rwlock->lock3);
 
-		
-		//end block
-		
-	}
-	else if(local_pending_w>WRITER_THRESHOLD){	//there is at least one writer waiting to write
-
-		P(rwlock->block);
 		//begin block
-		lock_acquire(rwlock->lock3);
+		spinlock_acquire(&rwlock->splock);
 		if(rwlock->reader_count==0) {
-			kprintf("Yes, was zero at some point 2\n");
+		//	kprintf("Yes, was zero at  point 1\n");
+			spinlock_release(&rwlock->splock);
 			P(rwlock->ex);
+			spinlock_acquire(&rwlock->splock);
 			rwlock->reader_count = 1;
+			spinlock_release(&rwlock->splock);
+		} else {
+			spinlock_release(&rwlock->splock);// release splock not released by if loop
 		}
-		lock_release(rwlock->lock3);
 		
 		//decrease pending readers by 1
-		lock_acquire(rwlock->lock4);
+		spinlock_acquire(&rwlock->splock);
 		rwlock->pending_r = rwlock->pending_r - 1;
-		lock_release(rwlock->lock4);
-		//increment reader count
-		lock_acquire(rwlock->lock3);
 		rwlock->reader_count = rwlock->reader_count + 1;
-		lock_release(rwlock->lock3);
-		//end block
+		spinlock_release(&rwlock->splock);
+		
 	}
-	else {			//there are no writers at all
+	else  {
+		didgo = 2;
+		if(rwlock->pending_w>WRITER_THRESHOLD){	//there is at least one writer waiting to write
+		spinlock_release(&rwlock->splock);
+		P(rwlock->block);
+	//begin block
+		spinlock_acquire(&rwlock->splock);
+		if(rwlock->reader_count==0) {
+		//	kprintf("Yes, was zero at  point 1\n");
+			spinlock_release(&rwlock->splock);
+			P(rwlock->ex);
+			spinlock_acquire(&rwlock->splock);
+			rwlock->reader_count = 1;
+			spinlock_release(&rwlock->splock);
+		} else {
+			spinlock_release(&rwlock->splock);// release splock not released by if loop
+		}
+		
+		//decrease pending readers by 1
+		spinlock_acquire(&rwlock->splock);
+		rwlock->pending_r = rwlock->pending_r - 1;
+		rwlock->reader_count = rwlock->reader_count + 1;
+		spinlock_release(&rwlock->splock);
+
+		}
+	}
+	if(didgo==-1) {			//there are no writers at all
 		P(rwlock->ex);
-		lock_acquire(rwlock->lock3);
+		spinlock_acquire(&rwlock->splock);
 		rwlock->reader_count = rwlock->reader_count + 1;
-		lock_release(rwlock->lock3);
+		spinlock_release(&rwlock->splock);
 		
 	}
 }
@@ -446,30 +436,28 @@ void rwlock_release_read(struct rwlock *rwlock)
 {
 	
 	KASSERT(rwlock!=NULL);
-	lock_acquire(rwlock->lock3);
+	spinlock_acquire(&rwlock->splock);
 	rwlock->reader_count = rwlock->reader_count - 1;
 	if(rwlock->reader_count==0)	//free ex. If there's a writer waiting, it can go ahead
 		V(rwlock->ex);
-	lock_release(rwlock->lock3);
+	spinlock_release(&rwlock->splock);
 }
 
 void rwlock_acquire_write(struct rwlock *rwlock)
 {
 	KASSERT(rwlock!=NULL);
 	//increment pending writers
-	lock_acquire(rwlock->lock5);
+	spinlock_acquire(&rwlock->splock);
 	rwlock->pending_w = rwlock->pending_w + 1;
-	lock_release(rwlock->lock5);
+	spinlock_release(&rwlock->splock);
 	//wait for all readers to leave
 	P(rwlock->ex);
 	//decrement pending writers
-	lock_acquire(rwlock->lock5);
+	spinlock_acquire(&rwlock->splock);
 	rwlock->pending_w = rwlock->pending_w - 1;
-	lock_release(rwlock->lock5);
 	//set writer = 1; means there is one live writer(used by readers)
-	lock_acquire(rwlock->lock1);
 	rwlock->writer = 1;
-	lock_release(rwlock->lock1);
+	spinlock_release(&rwlock->splock);
 	
 }
 
@@ -477,15 +465,13 @@ void rwlock_release_write(struct rwlock *rwlock)
 {
 	KASSERT(rwlock!=NULL);
 	int i=0;
-	lock_acquire(rwlock->lock4);
+	spinlock_acquire(&rwlock->splock);
 	if(rwlock->pending_r > MAX_READER_BACKLOG)	{ //release MAX_READER_BACKLOG threads
 		for(i=0;i<MAX_READER_BACKLOG;i++)
 			V(rwlock->block);
 	}
-	lock_release(rwlock->lock4);
-	lock_acquire(rwlock->lock1);
 	rwlock->writer = 0;
-	lock_release(rwlock->lock1);
+	spinlock_release(&rwlock->splock);
 
 	V(rwlock->ex);
 }
