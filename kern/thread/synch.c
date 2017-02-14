@@ -328,8 +328,8 @@ cv_broadcast(struct cv *cv, struct lock *lock)
 //////////////////////////////////////////////////////////
 // Reader Writer 
 
-#define MAX_READER_BACKLOG 5
-#define WRITER_THRESHOLD 2
+unsigned int  MAX_READER_BACKLOG = 5;
+unsigned int  WRITER_THRESHOLD = 5;
 
 struct rwlock *
 rwlock_create(const char *name)
@@ -365,76 +365,33 @@ rwlock_destroy(struct rwlock *rwlock)
 	sem_destroy(rwlock->block);
 }
 
-void rwlock_acquire_read(struct rwlock *rwlock)
-{	int didgo=-1;
-	//local copies for atomicity
+void rwlock_acquire_read(struct rwlock *rwlock) {
+//	extern int WRITER_THRESHOLD;
 	KASSERT(rwlock!=NULL);
 	lock_acquire(rwlock->splock);
 	rwlock->pending_r = rwlock->pending_r + 1;
-		
-	if(rwlock->writer == 1) {	//one writer is writing currently
-		didgo = 1;
+			
+	if(rwlock->writer == 1 || rwlock->pending_w>WRITER_THRESHOLD) {	
+	//one writer is writing currently OR there is at least one writer waiting to write
 		lock_release(rwlock->splock);
 		P(rwlock->block);
-
-		//begin block
-		lock_acquire(rwlock->splock);
-		if(rwlock->reader_count==0) {
-		//	kprintf("Yes, was zero at  point 1\n");
-			lock_release(rwlock->splock);
-			P(rwlock->ex);
-			lock_acquire(rwlock->splock);
-			rwlock->reader_count = 1;
-			lock_release(rwlock->splock);
-		} else {
-			lock_release(rwlock->splock);// release splock not released by if loop
-		}
-		
-		//decrease pending readers by 1
-		lock_acquire(rwlock->splock);
-		rwlock->pending_r = rwlock->pending_r - 1;
-		rwlock->reader_count = rwlock->reader_count + 1;
-		lock_release(rwlock->splock);
-		
 	}
-	else  {
-		didgo = 2;
-		if(rwlock->pending_w>WRITER_THRESHOLD){	//there is at least one writer waiting to write
+	//if we're the first reader(post block or otherwise), wait for (possible) writer to leave(ex)
+	lock_acquire(rwlock->splock);
+	if(rwlock->reader_count==0) {
 		lock_release(rwlock->splock);
-		P(rwlock->block);
-	//begin block
-		lock_acquire(rwlock->splock);
-		if(rwlock->reader_count==0) {
-		//	kprintf("Yes, was zero at  point 1\n");
-			lock_release(rwlock->splock);
-			P(rwlock->ex);
-			lock_acquire(rwlock->splock);
-			rwlock->reader_count = 1;
-			lock_release(rwlock->splock);
-		} else {
-			lock_release(rwlock->splock);// release splock not released by if loop
-		}
-		
-		//decrease pending readers by 1
-		lock_acquire(rwlock->splock);
-		rwlock->pending_r = rwlock->pending_r - 1;
-		rwlock->reader_count = rwlock->reader_count + 1;
-		lock_release(rwlock->splock);
-
-		}
-	}
-	if(didgo==-1) {			//there are no writers at all
 		P(rwlock->ex);
-		lock_acquire(rwlock->splock);
-		rwlock->reader_count = rwlock->reader_count + 1;
-		lock_release(rwlock->splock);
-		
+		lock_acquire(rwlock->splock);	//reacquire lock before coming out of condition
 	}
+	
+	//there are no writers actively writing
+	rwlock->pending_r = rwlock->pending_r - 1;
+	rwlock->reader_count = rwlock->reader_count + 1;
+	lock_release(rwlock->splock);
 }
 
 void rwlock_release_read(struct rwlock *rwlock)
 {
-	
 	KASSERT(rwlock!=NULL);
 	lock_acquire(rwlock->splock);
 	rwlock->reader_count = rwlock->reader_count - 1;
@@ -464,15 +421,14 @@ void rwlock_acquire_write(struct rwlock *rwlock)
 void rwlock_release_write(struct rwlock *rwlock)
 {
 	KASSERT(rwlock!=NULL);
-	int i=0;
+	unsigned int i=0;
 	lock_acquire(rwlock->splock);
-	if(rwlock->pending_r > MAX_READER_BACKLOG)	{ //release MAX_READER_BACKLOG threads
-		for(i=0;i<MAX_READER_BACKLOG;i++)
+	rwlock->writer = 0;
+	if(rwlock->pending_r >  MAX_READER_BACKLOG)	{ //release extra threads for reading
+		for(i=0;i<(rwlock->pending_r - MAX_READER_BACKLOG);i++)
 			V(rwlock->block);
 	}
-	rwlock->writer = 0;
 	lock_release(rwlock->splock);
-
 	V(rwlock->ex);
 }
 
