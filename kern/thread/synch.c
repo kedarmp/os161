@@ -333,7 +333,7 @@ unsigned int  WRITER_THRESHOLD = 5;
 
 struct rwlock *
 rwlock_create(const char *name)
-{	
+{
 	struct rwlock *rwlock;
 	rwlock = kmalloc(sizeof(*rwlock));
 	if(rwlock == NULL)
@@ -344,8 +344,27 @@ rwlock_create(const char *name)
 		return NULL;
 	}
 	rwlock->block = sem_create("block", 0);
+	if(rwlock->block == NULL) {
+		kfree(rwlock->rwlock_name);
+		kfree(rwlock);
+		return NULL;
+	}
 	rwlock->ex = sem_create("ex", 1);
+	if(rwlock->ex == NULL) {
+		kfree(rwlock->rwlock_name);
+		kfree(rwlock);
+		sem_destroy(rwlock->block);
+		return NULL;
+	}
+
 	rwlock->splock = lock_create("mylock");
+	if(rwlock->splock == NULL) {
+		kfree(rwlock->rwlock_name);
+		kfree(rwlock);
+		sem_destroy(rwlock->block);
+		sem_destroy(rwlock->ex);
+		return NULL;
+	}
 	rwlock->reader_count = rwlock->pending_r = rwlock->pending_w = rwlock->writer = 0;
 	return rwlock;
 }
@@ -424,7 +443,12 @@ void rwlock_release_write(struct rwlock *rwlock)
 	unsigned int i=0;
 	lock_acquire(rwlock->splock);
 	rwlock->writer = 0;
-	if(rwlock->pending_r >  MAX_READER_BACKLOG)	{ //release extra threads for reading
+	if(rwlock->pending_w==0) {
+		for(i=0;i<rwlock->pending_r;i++)
+			V(rwlock->block);
+	}
+
+	else if(rwlock->pending_r >  MAX_READER_BACKLOG)	{ //release extra threads for reading
 		for(i=0;i<(rwlock->pending_r - MAX_READER_BACKLOG);i++)
 			V(rwlock->block);
 	}
