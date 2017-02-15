@@ -412,7 +412,9 @@ void rwlock_acquire_read(struct rwlock *rwlock) {
 void rwlock_release_read(struct rwlock *rwlock)
 {
 	KASSERT(rwlock!=NULL);
+	
 	lock_acquire(rwlock->splock);
+	KASSERT(rwlock->reader_count > 0);
 	rwlock->reader_count = rwlock->reader_count - 1;
 	if(rwlock->reader_count==0)	//free ex. If there's a writer waiting, it can go ahead
 		V(rwlock->ex);
@@ -442,6 +444,7 @@ void rwlock_release_write(struct rwlock *rwlock)
 	KASSERT(rwlock!=NULL);
 	unsigned int i=0;
 	lock_acquire(rwlock->splock);
+	KASSERT(rwlock->writer == 1);
 	rwlock->writer = 0;
 	if(rwlock->pending_w==0) {
 		for(i=0;i<rwlock->pending_r;i++)
