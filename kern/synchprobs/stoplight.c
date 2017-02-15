@@ -102,8 +102,7 @@ void stoplight_cleanup() {
 
 void
 turnright(uint32_t direction, uint32_t index)
-
-{	kprintf("Car %d will go right\n",index);
+{
 //	P(maxcars);
 	lock_acquire(lock_quad[direction]);
 	inQuadrant(direction,index);
@@ -118,7 +117,7 @@ turnright(uint32_t direction, uint32_t index)
 void
 gostraight(uint32_t direction, uint32_t index)
 	
-{	kprintf("Car %d will go straight\n",index);
+{
 	uint32_t new_direction;
 	P(maxcars);
 	lock_acquire(lock_quad[direction]);
@@ -142,7 +141,6 @@ gostraight(uint32_t direction, uint32_t index)
 void
 turnleft(uint32_t direction, uint32_t index)
 {
-	kprintf("Car %d will go left\n",index);
 	uint32_t new_direction;
 	P(maxcars);
 	lock_acquire(lock_quad[direction]);
