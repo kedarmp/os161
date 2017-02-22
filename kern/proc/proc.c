@@ -212,17 +212,6 @@ proc_create_runprogram(const char *name)
 	newproc->ftable[1] = fhandle_create(console1, O_WRONLY);	//stdout
 	newproc->ftable[2] = fhandle_create(console2, O_WRONLY);	//stderr
 
-	if(newproc->ftable[0]!=NULL) {
-			kprintf("\nStdin handle created\n");
-		}
-
-	if(newproc->ftable[1]!=NULL) {
-			kprintf("\nStdout handle created\n");
-		}
-
-	if(newproc->ftable[2]!=NULL) {
-			kprintf("\nStderr handle created\n");
-		}
 	/*
 	 * Lock the current process to copy its current directory.
 	 * (We don't need to lock the new process, though, as we have
