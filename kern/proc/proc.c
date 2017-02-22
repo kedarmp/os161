@@ -49,11 +49,11 @@
 #include <addrspace.h>
 #include <vnode.h>
 
+
 /*
  * The process for the kernel; this holds all the kernel-only threads.
  */
 struct proc *kproc;
-
 /*
  * Create a proc structure.
  */
@@ -81,6 +81,16 @@ proc_create(const char *name)
 
 	/* VFS fields */
 	proc->p_cwd = NULL;
+	
+	//initialize stdin, stdout, stderr
+	//char backup[5];
+	//backup = kstrdup(console);
+//	kprintf("for process:%s\n:",name);
+//	char console[5] = "con:";
+//	proc->ftable[1] = fhandle_create(console, O_WRONLY);	//stdout
+//	proc->ftable[0] = fhandle_create(backup,O_RDONLY);	//stdin	
+//	proc->ftable[2] = fhandle_create(console, O_WRONLY);	//stderr
+
 
 	return proc;
 }
@@ -205,6 +215,11 @@ proc_create_runprogram(const char *name)
 	newproc->p_addrspace = NULL;
 
 	/* VFS fields */
+	char console[5] = "con:";
+	newproc->ftable[1] = fhandle_create(console, O_WRONLY);	//stdout
+	if(newproc->ftable[1]!=NULL) {
+			kprintf("\nFile handle created\n");
+		}
 
 	/*
 	 * Lock the current process to copy its current directory.
