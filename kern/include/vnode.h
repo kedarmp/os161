@@ -184,7 +184,7 @@ struct vnode_ops {
 	int (*vop_reclaim)(struct vnode *vnode);
 
 
-	int (*vop_read)(struct vnode *file, struct uio *uio);
+		int (*vop_read)(struct vnode *file, struct uio *uio);
 	int (*vop_readlink)(struct vnode *link, struct uio *uio);
 	int (*vop_getdirentry)(struct vnode *dir, struct uio *uio);
 	int (*vop_write)(struct vnode *file, struct uio *uio);
