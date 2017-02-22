@@ -112,13 +112,8 @@ syscall(struct trapframe *tf)
 
 	    /* Add stuff here */
 	    case SYS_write:
-//		err = sys_write((userptr_t)tf->tf_a0, (userptr_t)tf->tf_a1,(userptr_t)tf->tf_a2);
-	//	kprintf("a1 contains:%d",tf->tf_a1);
-	//	kprintf("deref a1:%d",*(tf->tf_a1));
-			
-
 		err = sys_write(tf->tf_a0,(userptr_t)tf->tf_a1,tf->tf_a2);	//when to use userptr_t with copyin/out
-		kprintf("\nsyscall.h returned value:%d\n",err);
+		
 		break;
 
 	    default:

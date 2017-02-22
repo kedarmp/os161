@@ -38,8 +38,8 @@
 
 #include<spinlock.h>
 #include<fhandle.h>
-#include<kern/fcntl.h>
-#include<kern/limits.h>
+#include <kern/fcntl.h>
+#include <kern/limits.h>
 
 struct addrspace;
 struct thread;

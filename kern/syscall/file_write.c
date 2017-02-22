@@ -1,51 +1,41 @@
-
-#include<file_write.h>
-#include<uio.h>
-//#include<iovec.h>
-#include<vnode.h>
-#include<current.h>
-#include<proc.h>
-
+#include <fhandle.h>
+#include <file_write.h>
+#include <uio.h>
+#include <vnode.h>
+#include <current.h>
+#include <proc.h>
+ 
 ssize_t sys_write(uint32_t fd_u, userptr_t buffer_u, uint32_t size_u) {
 	
-//Do all kinds of possible checks on arguments here
+	//TO-DO all kinds of possible checks on arguments here
 	
-	kprintf("Filehandle:%d, sizze:%d\n:",fd_u,size_u);
+	KASSERT(buffer_u!=NULL);
+
+	struct fhandle *f_handle_name = (curproc->ftable[fd_u]);	
+	KASSERT(f_handle_name != NULL);
+
+	lock_acquire(f_handle_name->lock);
+	//kprintf("Filehandle:%d, sizze:%d\n:",fd_u,size_u);
 	
-	struct uio *u;
-	struct iovec *iov;
+	struct uio u;
+	struct iovec iov;
 	enum uio_rw e = UIO_WRITE;
-
-
-
-	char *buffer = kmalloc(sizeof(char)*size_u);
-	size_t got;
-	int err = copyinstr(buffer_u, buffer,size_u,&got);
-	if(err) {
-		kprintf("copyinstr err:%d",err);
-		return err;
-	}
-	else {
-		kprintf("%s",buffer);
-		return got;
-	}
-	buffer[got] = '\0';	//use got or the advertized size_u?
-	kprintf("\nGot %d bytes/chars. Had %d bytes/chars\n",got,size_u);
-
+	uio_uinit(&iov,&u,buffer_u,size_u,f_handle_name->write_offset,e);
 	
-	uio_uinit(iov, u, buffer_u,size_u,0,e);
+	struct vnode *vnode = f_handle_name->file;	
 	
-	//if fd_u ==1
-	struct vnode *stdout_vnode = (curproc->ftable[1])->file;	
 	//perform the write!
-	err = VOP_WRITE(stdout_vnode,u);
-	if(err) {
-		kprintf("Writing err:%d",err);
+	//int err=1;
+	int err = VOP_WRITE(vnode,&u);
+	if(err!=0) {
+		lock_release(f_handle_name->lock);
 		return err;
 	}
-	else {
-		kprintf("Apparently we wrote something!");
-		return got;
-	}
-	return 0;
+	//kprintf("\nerr::%d",err);
+	int bytes_written = (size_u - (u.uio_resid));
+	//kprintf("Apparently we wrote something! : %d \n",bytes_written);
+	f_handle_name->write_offset += bytes_written;
+
+	lock_release(f_handle_name->lock);
+	return bytes_written;
 }
