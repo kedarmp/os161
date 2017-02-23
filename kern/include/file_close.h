@@ -3,4 +3,4 @@
 #include<copyinout.h>
 #include<lib.h>
 
-ssize_t sys_write(uint32_t fd_u, userptr_t buffer_u, uint32_t size_u,int * err);
+int sys_close(int fd,int *errptr);

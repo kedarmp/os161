@@ -17,7 +17,7 @@ struct fhandle {
 };
 
 struct fhandle* fhandle_create(char *file_name, int open_mode);
-int fhandle_destroy(struct fhandle *h);				//should dealloc only if rcount=0
+void fhandle_destroy(struct fhandle *h);				//should dealloc only if rcount=0
 
 
 #endif

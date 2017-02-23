@@ -395,7 +395,7 @@ file fs/fhandle.c
 #added 2/22
 file syscall/file_read.c
 file syscall/file_open.c
-
+file syscall/file_close.c
 
 #
 # Startup and initialization

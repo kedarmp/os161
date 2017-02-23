@@ -38,7 +38,7 @@
 #include <file_write.h>
 #include <file_read.h>
 #include <file_open.h>
-
+#include <file_close.h>
 
 /*
  * System call dispatcher.
@@ -83,7 +83,9 @@ syscall(struct trapframe *tf)
 {
 	int callno;
 	int32_t retval;
-	int err;
+	
+	//Initialize err to zero
+	int err = 0;
 
 	KASSERT(curthread != NULL);
 	KASSERT(curthread->t_curspl == 0);
@@ -114,15 +116,19 @@ syscall(struct trapframe *tf)
 
 	    /* Add stuff here */
 	    case SYS_write:
-		err = sys_write(tf->tf_a0,(userptr_t)tf->tf_a1,tf->tf_a2);
+		retval = sys_write(tf->tf_a0,(userptr_t)tf->tf_a1,tf->tf_a2,&err);
 		
 		break;
 	    case SYS_read:
-		err = sys_read(tf->tf_a0,(userptr_t)tf->tf_a1,tf->tf_a2);
+		retval = sys_read(tf->tf_a0,(userptr_t)tf->tf_a1,tf->tf_a2,&err);
 		break;
 	
 	    case SYS_open:
-		err = sys_open((const_userptr_t)tf->tf_a0,tf->tf_a1);
+		retval = sys_open((const_userptr_t)tf->tf_a0,tf->tf_a1,&err);
+		break;
+
+		case SYS_close:
+		retval = sys_close(tf->tf_a0,&err);
 		break;
 
 

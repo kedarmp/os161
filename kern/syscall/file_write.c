@@ -6,17 +6,26 @@
 #include <proc.h>
 #include <kern/errno.h>
  
-ssize_t sys_write(uint32_t fd_u, userptr_t buffer_u, uint32_t size_u) {
+ssize_t sys_write(uint32_t fd_u, userptr_t buffer_u, uint32_t size_u,int *errptr) {
 	
 	//TO-DO all kinds of possible checks on arguments here
-	if(buffer_u==NULL)      
-                return EINVAL;
-        if(fd_u >= __OPEN_MAX)
-                return EBADF;
+	if(buffer_u==NULL)
+	{
+		*errptr = EINVAL;
+		return -1;
+	}		
+	if(fd_u >= __OPEN_MAX)	
+	{
+		*errptr = EBADF;
+		return -1;
+	}
 
 	struct fhandle *f_handle_name = (curproc->ftable[fd_u]);	
 	if(f_handle_name == NULL)
-		return EBADF;
+	{
+		*errptr = EBADF;
+		return -1;
+	}
 
 	lock_acquire(f_handle_name->lock);
 	//kprintf("Filehandle:%d, sizze:%d\n:",fd_u,size_u);
@@ -33,7 +42,8 @@ ssize_t sys_write(uint32_t fd_u, userptr_t buffer_u, uint32_t size_u) {
 	int err = VOP_WRITE(vnode,&u);
 	if(err!=0) {
 		lock_release(f_handle_name->lock);
-		return err;
+		*errptr = err;
+		return -1;
 	}
 	//kprintf("\nerr::%d",err);
 	int bytes_written = (size_u - (u.uio_resid));
@@ -41,5 +51,7 @@ ssize_t sys_write(uint32_t fd_u, userptr_t buffer_u, uint32_t size_u) {
 	f_handle_name->write_offset += bytes_written;
 
 	lock_release(f_handle_name->lock);
+	//Success throughout , therefore reset the errptr
+	*errptr = 0;
 	return bytes_written;
 }
