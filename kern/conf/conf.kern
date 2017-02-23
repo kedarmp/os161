@@ -392,6 +392,10 @@ file      syscall/time_syscalls.c
 file syscall/file_write.c
 #added 2/21
 file fs/fhandle.c
+#added 2/22
+file syscall/file_read.c
+file syscall/file_open.c
+
 
 #
 # Startup and initialization
