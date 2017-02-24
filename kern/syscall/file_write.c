@@ -33,7 +33,7 @@ ssize_t sys_write(uint32_t fd_u, userptr_t buffer_u, uint32_t size_u,int *errptr
 	struct uio u;
 	struct iovec iov;
 	enum uio_rw e = UIO_WRITE;
-	uio_uinit(&iov,&u,buffer_u,size_u,f_handle_name->write_offset,e);
+	uio_uinit(&iov,&u,buffer_u,size_u,f_handle_name->offset,e);
 	
 	struct vnode *vnode = f_handle_name->file;	
 	
@@ -48,7 +48,7 @@ ssize_t sys_write(uint32_t fd_u, userptr_t buffer_u, uint32_t size_u,int *errptr
 	//kprintf("\nerr::%d",err);
 	int bytes_written = (size_u - (u.uio_resid));
 	//kprintf("Apparently we wrote something! : %d \n",bytes_written);
-	f_handle_name->write_offset += bytes_written;
+	f_handle_name->offset += bytes_written;
 
 	lock_release(f_handle_name->lock);
 	//Success throughout , therefore reset the errptr

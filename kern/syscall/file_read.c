@@ -34,7 +34,7 @@ ssize_t sys_read(uint32_t fd_u, userptr_t buffer_u, uint32_t size_u,int *errptr)
 	struct uio u;
 	struct iovec iov;
 	enum uio_rw e = UIO_READ;
-	uio_uinit(&iov,&u,buffer_u,size_u,f_handle_name->write_offset,e);	//make sure that the unit params are correct(esp the segflg,uiospace)
+	uio_uinit(&iov,&u,buffer_u,size_u,f_handle_name->offset,e);	//make sure that the unit params are correct(esp the segflg,uiospace)
 	
 	struct vnode *vnode = f_handle_name->file;	
 	
@@ -48,7 +48,7 @@ ssize_t sys_read(uint32_t fd_u, userptr_t buffer_u, uint32_t size_u,int *errptr)
 	//kprintf("\nerr::%d",err);
 	int bytes_read = (size_u - (u.uio_resid));
 	//kprintf("Apparently we wrote something! : %d \n",bytes_written);
-	f_handle_name->read_offset += bytes_read;
+	f_handle_name->offset += bytes_read;
 
 	lock_release(f_handle_name->lock);
 	//Success throughout , therefore reset the errptr

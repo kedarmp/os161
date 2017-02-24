@@ -49,9 +49,7 @@ int sys_open(const_userptr_t filename, int flags,int *errptr) {
 				*errptr = err;
 				return -1;
 			}
-			handle->write_offset = file_info.st_size;	//verify if st_size should be the offset
-
-			//set write offset of handle to sizew
+			handle->offset = file_info.st_size;	//verify if st_size should be the offset
 		}
 
 	} 

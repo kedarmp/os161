@@ -7,8 +7,7 @@ struct fhandle* fhandle_create(char *file_name, int open_mode) {
 	f = kmalloc(sizeof(*f));
 	if(f==NULL)
 		return NULL;
-	f->read_offset = 0;
-	f->write_offset = 0;
+	f->offset = 0;
 	f->rcount = 0;
 
 	f->lock = lock_create(file_name);

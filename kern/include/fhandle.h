@@ -8,8 +8,7 @@
 
 struct fhandle {
 	struct vnode* file;
-	int read_offset;
-	int write_offset;
+	int offset;
 	int open_mode;	// File open modes. e.g. O_WRONLY (See fcntl.h)
 	int rcount;	// Number of processes holding reference to this file handle
 	struct lock *lock;
