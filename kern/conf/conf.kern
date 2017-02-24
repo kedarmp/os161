@@ -396,6 +396,7 @@ file fs/fhandle.c
 file syscall/file_read.c
 file syscall/file_open.c
 file syscall/file_close.c
+file syscall/file_getcwd.c
 
 #
 # Startup and initialization

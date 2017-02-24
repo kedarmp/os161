@@ -39,6 +39,7 @@
 #include <file_read.h>
 #include <file_open.h>
 #include <file_close.h>
+#include <file_getcwd.h>
 
 /*
  * System call dispatcher.
@@ -131,6 +132,9 @@ syscall(struct trapframe *tf)
 		retval = sys_close(tf->tf_a0,&err);
 		break;
 
+	    case SYS___getcwd:
+		retval = sys_getcwd((userptr_t)tf->tf_a0,tf->tf_a1,&err);
+		break;
 
 	    default:
 		kprintf("Unknown syscall %d\n", callno);
