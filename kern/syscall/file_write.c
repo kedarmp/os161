@@ -46,12 +46,12 @@ ssize_t sys_write(uint32_t fd_u, userptr_t buffer_u, uint32_t size_u,int *errptr
 		return -1;
 	}
 	//kprintf("\nerr::%d",err);
-	int bytes_written = (size_u - (u.uio_resid));
+	off_t bytes_written = (off_t)(size_u - (u.uio_resid));
 	//kprintf("Apparently we wrote something! : %d \n",bytes_written);
 	f_handle_name->offset += bytes_written;
 
 	lock_release(f_handle_name->lock);
 	//Success throughout , therefore reset the errptr
 	*errptr = 0;
-	return bytes_written;
+	return (ssize_t)bytes_written;
 }

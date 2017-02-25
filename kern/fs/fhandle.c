@@ -1,6 +1,8 @@
 #include <fhandle.h>
 #include <lib.h>
 #include <vfs.h>
+#include <current.h>
+#include <proc.h>
 
 struct fhandle* fhandle_create(char *file_name, int open_mode) {
 	struct fhandle *f;
@@ -19,7 +21,6 @@ struct fhandle* fhandle_create(char *file_name, int open_mode) {
 
 	int err = vfs_open(file_name,open_mode,0,&f->file);
 	if(err) {
-		kprintf("\nError vfs_opening file. Errorcode:%d",err);
 		lock_destroy(f->lock);
 		kfree(f);
 		return NULL;
@@ -28,13 +29,15 @@ struct fhandle* fhandle_create(char *file_name, int open_mode) {
 	return f;
 }
 
-void fhandle_destroy(struct fhandle *h) {
+void fhandle_destroy(struct fhandle *h,int fd) {
 	lock_acquire(h->lock);
 	h->rcount--;
 	lock_release(h->lock);
 	if(h->rcount == 0) {
 		lock_destroy(h->lock);
 		kfree(h);
+		h = NULL;
+		curproc->ftable[fd] = NULL;
 	}
 	
 

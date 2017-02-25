@@ -24,7 +24,7 @@ int sys_open(const_userptr_t filename, int flags,int *errptr) {
 		*errptr = err;
 		return -1;	//or EFAULT?
 	}
-	kprintf("Opening file:%s",buffer);
+	//kprintf("Opening file:%s",buffer);
 
 	//check if there is space in our file table to open another file
 	int count = 0;
@@ -40,6 +40,7 @@ int sys_open(const_userptr_t filename, int flags,int *errptr) {
 			return -1;  //which errcode to return?
 		}
 		curproc->ftable[count] = handle;
+		handle->rcount++;
 		if(flags == (O_WRONLY|O_APPEND) || flags == (O_RDWR|O_APPEND)) {
 			//get size of file
 			struct stat file_info;

@@ -40,6 +40,7 @@
 #include <file_open.h>
 #include <file_close.h>
 #include <file_getcwd.h>
+#include <file_lseek.h>
 
 /*
  * System call dispatcher.
@@ -104,6 +105,8 @@ syscall(struct trapframe *tf)
 	 */
 
 	retval = 0;
+	off_t seek_offset=0;
+	uint32_t seek_low=0, seek_high=0;
 
 	switch (callno) {
 	    case SYS_reboot:
@@ -136,6 +139,13 @@ syscall(struct trapframe *tf)
 		retval = sys_getcwd((userptr_t)tf->tf_a0,tf->tf_a1,&err);
 		break;
 
+		case SYS_lseek: {
+		seek_offset = sys_lseek(tf->tf_a0,tf->tf_a2,tf->tf_a3,(int *)((tf->tf_sp)+16),&err);
+		seek_low = (uint32_t)seek_offset;
+		seek_high = (uint32_t)(seek_offset >> 32);
+		}
+		break;
+
 	    default:
 		kprintf("Unknown syscall %d\n", callno);
 		err = ENOSYS;
@@ -154,7 +164,13 @@ syscall(struct trapframe *tf)
 	}
 	else {
 		/* Success. */
+		if(callno==SYS_lseek) {
+			tf->tf_v0 = seek_high;
+			tf->tf_v1 = seek_low;
+		}
+		else {
 		tf->tf_v0 = retval;
+		}
 		tf->tf_a3 = 0;      /* signal no error */
 	}
 
