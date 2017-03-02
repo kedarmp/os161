@@ -36,8 +36,8 @@
  * Note: curproc is defined by <current.h>.
  */
 
-#include<spinlock.h>
-#include<fhandle.h>
+#include <spinlock.h>
+#include <fhandle.h>
 #include <kern/fcntl.h>
 #include <kern/limits.h>
 
@@ -75,6 +75,7 @@ struct proc {
 
 	/* add more material here as needed */
 	struct fhandle* ftable[__OPEN_MAX];	//defined in kern/limits.h
+	pid_t proc_id;
 };
 
 /* This is the process structure for the kernel and for kernel-only threads. */

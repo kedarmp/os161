@@ -48,12 +48,15 @@
 #include <current.h>
 #include <addrspace.h>
 #include <vnode.h>
-
+#include <limits.h>
+#include <proc_table.h>
 
 /*
  * The process for the kernel; this holds all the kernel-only threads.
  */
 struct proc *kproc;
+
+
 /*
  * Create a proc structure.
  */
@@ -81,6 +84,16 @@ proc_create(const char *name)
 
 	/* VFS fields */
 	proc->p_cwd = NULL;
+
+	//assign new process id
+	proc->proc_id = create_pid();
+	if(proc->proc_id == -1) {
+		kfree(proc);
+		return NULL;
+	}
+
+	//add process to process table
+	add_proc(proc);
 
 	return proc;
 }

@@ -41,6 +41,7 @@
 #include <file_close.h>
 #include <file_getcwd.h>
 #include <file_lseek.h>
+#include <sys_getpid.h>
 
 /*
  * System call dispatcher.
@@ -144,6 +145,10 @@ syscall(struct trapframe *tf)
 		seek_low = (uint32_t)seek_offset;
 		seek_high = (uint32_t)(seek_offset >> 32);
 		}
+		break;
+
+		case SYS_getpid:
+		retval = sys_getpid();
 		break;
 
 	    default:

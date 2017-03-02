@@ -398,6 +398,8 @@ file syscall/file_open.c
 file syscall/file_close.c
 file syscall/file_getcwd.c
 file syscall/file_lseek.c
+file syscall/sys_getpid.c
+file proc/proc_table.c
 
 #
 # Startup and initialization
