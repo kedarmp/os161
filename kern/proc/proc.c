@@ -42,14 +42,13 @@
  * process that will have more than one thread is the kernel process.
  */
 
-#include <types.h>
+//#include <types.h>
 #include <spl.h>
 #include <proc.h>
 #include <current.h>
 #include <addrspace.h>
 #include <vnode.h>
 #include <limits.h>
-#include <proc_table.h>
 
 /*
  * The process for the kernel; this holds all the kernel-only threads.

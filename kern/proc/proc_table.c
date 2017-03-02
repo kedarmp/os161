@@ -1,7 +1,6 @@
 //Declaring an array of structs for the process table 
 #include <proc_table.h>
-#include <synch.h>
-#include <types.h>
+#include <limits.h>
 
 struct proc* proc_table[PID_MAX];
 
@@ -56,7 +55,8 @@ struct proc* get_proc(pid_t pid)
 	}
 	return NULL;
 }
-void add_proc(struct proc * p) {
+void add_proc(struct proc * p) 
+{
 	lock_acquire(proc_lock);
 	proc_table[p->proc_id] = p;
 	proc_count++;

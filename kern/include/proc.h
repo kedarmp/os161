@@ -35,9 +35,10 @@
  *
  * Note: curproc is defined by <current.h>.
  */
-
+#include <types.h>
 #include <spinlock.h>
 #include <fhandle.h>
+#include <proc_table.h>
 #include <kern/fcntl.h>
 #include <kern/limits.h>
 

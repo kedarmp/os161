@@ -1,5 +1,6 @@
 #include <proc.h>
-#include <limits.h>
+#include <types.h>
+#include <synch.h>
 //#include <unistd.h>
 
 //Generate PID
