@@ -29,7 +29,7 @@
 
 #include <unistd.h>
 #include <stdlib.h>
-
+#include <stdio.h>
 /*
  * true - succeed.
  */
@@ -38,5 +38,15 @@ int
 main(void)
 {
 	/* Just exit with success. */
+	int pid = fork();
+	if(pid == 0)
+	{
+		printf("Child");
+	}
+	else 
+	{
+		printf("Parent");
+	}
 	exit(0);
+
 }

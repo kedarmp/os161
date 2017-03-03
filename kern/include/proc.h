@@ -76,6 +76,9 @@ struct proc {
 
 	/* add more material here as needed */
 	struct fhandle* ftable[__OPEN_MAX];	//defined in kern/limits.h
+
+	//Parent and Child process ids 
+	pid_t parent_proc_id;
 	pid_t proc_id;
 };
 
@@ -84,6 +87,9 @@ extern struct proc *kproc;
 
 /* Call once during system startup to allocate data structures. */
 void proc_bootstrap(void);
+
+//Helper function to call proc_create
+struct proc *call_proc_create(const char *proc_name);
 
 /* Create a fresh process for use by runprogram(). */
 struct proc *proc_create_runprogram(const char *name);

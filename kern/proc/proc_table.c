@@ -1,6 +1,6 @@
 //Declaring an array of structs for the process table 
-#include <proc_table.h>
 #include <limits.h>
+#include <proc_table.h>
 
 struct proc* proc_table[PID_MAX];
 
@@ -20,13 +20,13 @@ void init_proc_table(void)
 		return;
 	}
 	initialize_count = 1;
-	proc_lock = lock_create("proclock");
+	//proc_lock = lock_create("proclock");
 }
 
 pid_t create_pid(void)
 {
-	int i = 1;
-	for( ; i<PID_MAX && proc_table[i]!= NULL ; i++)
+	int i;
+	for(i=1 ; i<PID_MAX && proc_table[i]!= NULL ; i++)
 	{
 
 	}
@@ -39,12 +39,12 @@ pid_t create_pid(void)
 
 void recycle_pid(pid_t pid)
 {
-	lock_acquire(proc_lock);
+	//lock_acquire(proc_lock);
 	if(pid < PID_MAX && pid >= 1)
 	{
 		proc_table[pid] = NULL;
 	}
-	lock_release(proc_lock);
+	//lock_release(proc_lock);
 }
 
 struct proc* get_proc(pid_t pid)
@@ -57,8 +57,8 @@ struct proc* get_proc(pid_t pid)
 }
 void add_proc(struct proc * p) 
 {
-	lock_acquire(proc_lock);
+	//lock_acquire(proc_lock);
 	proc_table[p->proc_id] = p;
 	proc_count++;
-	lock_release(proc_lock);
+	//lock_release(proc_lock);
 }

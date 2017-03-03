@@ -42,7 +42,8 @@
 #include <file_getcwd.h>
 #include <file_lseek.h>
 #include <sys_getpid.h>
-
+#include <sys_fork.h>
+#include <addrspace.h>
 /*
  * System call dispatcher.
  *
@@ -151,6 +152,14 @@ syscall(struct trapframe *tf)
 		retval = sys_getpid();
 		break;
 
+		case SYS_fork://pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc, void (*func)(void *, unsigned long),int *errptr)
+		retval = sys_fork(tf,curproc,&err);
+		break;
+
+		case SYS__exit:
+		thread_exit();
+		break;
+
 	    default:
 		kprintf("Unknown syscall %d\n", callno);
 		err = ENOSYS;
@@ -200,8 +209,14 @@ syscall(struct trapframe *tf)
  *
  * Thus, you can trash it and do things another way if you prefer.
  */
-void
-enter_forked_process(struct trapframe *tf)
-{
-	(void)tf;
+void enter_forked_process(void *tf, unsigned long child_return) {//struct trapframe *tf
+	struct trapframe t = *((struct trapframe*)tf);
+	t.tf_a3 = 0; //no error
+	t.tf_v0 = child_return;	//child return value(0 returned to child; pid of child returned to parent)
+	//increment Iinstruction pointer by 
+	t.tf_epc += 4;
+	// and then call mips_usermode (trap.c)
+	as_activate();
+	mips_usermode(&t);
+	
 }

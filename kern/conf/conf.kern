@@ -400,6 +400,7 @@ file syscall/file_getcwd.c
 file syscall/file_lseek.c
 file syscall/sys_getpid.c
 file proc/proc_table.c
+file syscall/sys_fork.c
 
 #
 # Startup and initialization

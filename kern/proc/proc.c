@@ -49,6 +49,7 @@
 #include <addrspace.h>
 #include <vnode.h>
 #include <limits.h>
+ #include <proc_table.h>
 
 /*
  * The process for the kernel; this holds all the kernel-only threads.
@@ -95,6 +96,13 @@ proc_create(const char *name)
 	add_proc(proc);
 
 	return proc;
+}
+
+//helper function to call proc_create
+struct proc * call_proc_create(const char *proc_name)
+{
+	struct proc *ret_proc = proc_create(proc_name);
+	return ret_proc;
 }
 
 /*
@@ -189,7 +197,9 @@ proc_destroy(struct proc *proc)
  */
 void
 proc_bootstrap(void)
+
 {
+	
 	kproc = proc_create("[kernel]");
 	if (kproc == NULL) {
 		panic("proc_create for kproc failed\n");
