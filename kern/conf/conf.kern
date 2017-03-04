@@ -401,6 +401,8 @@ file syscall/file_lseek.c
 file syscall/sys_getpid.c
 file proc/proc_table.c
 file syscall/sys_fork.c
+file syscall/sys_exit.c
+file syscall/sys_waitpid.c
 
 #
 # Startup and initialization

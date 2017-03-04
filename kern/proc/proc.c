@@ -50,6 +50,7 @@
 #include <vnode.h>
 #include <limits.h>
  #include <proc_table.h>
+ #include <synch.h>
 
 /*
  * The process for the kernel; this holds all the kernel-only threads.
@@ -94,6 +95,8 @@ proc_create(const char *name)
 
 	//add process to process table
 	add_proc(proc);
+	//initialize swemaphore
+	proc->sem = sem_create("sem",0);
 
 	return proc;
 }

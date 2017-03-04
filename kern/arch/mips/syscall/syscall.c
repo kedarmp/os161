@@ -43,6 +43,8 @@
 #include <file_lseek.h>
 #include <sys_getpid.h>
 #include <sys_fork.h>
+ #include <sys_exit.h>
+ #include <sys_waitpid.h>
 #include <addrspace.h>
 /*
  * System call dispatcher.
@@ -157,7 +159,12 @@ syscall(struct trapframe *tf)
 		break;
 
 		case SYS__exit:
-		thread_exit();
+		//thread_exit();
+		sys_exit(tf->tf_a0);
+		break;
+
+		case SYS_waitpid:
+		retval = sys_waitpid(tf->tf_a0,(userptr_t)tf->tf_a1,0,&err);
 		break;
 
 	    default:

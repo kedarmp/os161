@@ -45,6 +45,7 @@
 struct addrspace;
 struct thread;
 struct vnode;
+struct semaphore;
 
 /*
  * Process structure.
@@ -80,6 +81,12 @@ struct proc {
 	//Parent and Child process ids 
 	pid_t parent_proc_id;
 	pid_t proc_id;
+
+	//Exit code
+	int exit_code;
+	//sem for waitpid/exit
+	struct semaphore *sem;
+
 };
 
 /* This is the process structure for the kernel and for kernel-only threads. */
