@@ -105,6 +105,8 @@ proc_create(const char *name)
 struct proc * call_proc_create(const char *proc_name)
 {
 	struct proc *ret_proc = proc_create(proc_name);
+	if(ret_proc==NULL) 
+		return NULL;
 	return ret_proc;
 }
 
