@@ -143,7 +143,6 @@ boot(void)
 	COMPILE_ASSERT(sizeof(*(userptr_t)0) == sizeof(char));
 
 	//Initialize the proc table
-	init_proc_table();
 }
 
 /*

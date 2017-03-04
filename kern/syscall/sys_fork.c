@@ -35,7 +35,7 @@ pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *err
 	//copy stuff from parent
 	child -> proc_id = child_id;
 	child -> parent_proc_id = parent_proc -> proc_id;
-	child -> p_numthreads = 1;
+//	child -> p_numthreads = 1;
 
 	//Running through the parent ftable and getting the number of open FDs
 	int i;
@@ -50,9 +50,6 @@ pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *err
 		}
 	}
 
-	//child->ftable = (struct fhandle*)kmalloc(sizeof(struct fhandle)*count_fd);
-	//memcpy(child -> ftable, parent_proc -> ftable, (sizeof(struct fhandle*)*count_fd)); //sizeof((struct fhandle*)*OPEN_MAX));?
-	
 	struct addrspace *child_addrspace;
 	as_copy(parent_proc->p_addrspace, &child_addrspace);
 	child -> p_addrspace = child_addrspace;

@@ -5,23 +5,8 @@
 struct proc* proc_table[PID_MAX];
 
 //Initislize the proc count to 0
-int proc_count = 0;
+volatile int proc_count = 0;
 
-//Initialize the lock
-struct lock *proc_lock;
-
-//Variable to keep track of init funciton calling
-int initialize_count = 0;
-
-void init_proc_table(void)
-{
-	if(initialize_count != 0)
-	{
-		return;
-	}
-	initialize_count = 1;
-	//proc_lock = lock_create("proclock");
-}
 
 pid_t create_pid(void)
 {
@@ -39,12 +24,10 @@ pid_t create_pid(void)
 
 void recycle_pid(pid_t pid)
 {
-	//lock_acquire(proc_lock);
 	if(pid < PID_MAX && pid >= 1)
 	{
 		proc_table[pid] = NULL;
 	}
-	//lock_release(proc_lock);
 }
 
 struct proc* get_proc(pid_t pid)
@@ -57,8 +40,8 @@ struct proc* get_proc(pid_t pid)
 }
 void add_proc(struct proc * p) 
 {
-	//lock_acquire(proc_lock);
+//	spinlock_acquire(splock);
 	proc_table[p->proc_id] = p;
 	proc_count++;
-	//lock_release(proc_lock);
+//	spinlock_release(splock);
 }

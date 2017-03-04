@@ -95,7 +95,7 @@ proc_create(const char *name)
 
 	//add process to process table
 	add_proc(proc);
-	//initialize swemaphore
+	//initialize semaphore
 	proc->sem = sem_create("sem",0);
 
 	return proc;

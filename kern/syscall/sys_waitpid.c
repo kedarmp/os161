@@ -30,22 +30,28 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 		*errptr = ECHILD;
 		return -1;
 	}
-
-	//P(curproc->sem);
+	P(curproc->sem);
 	
 	//child called _exit
 	if(WIFEXITED(child->exit_code)) 
 	{	
 		//try to copy out exit code to userptr
 		int err_code = WEXITSTATUS(child->exit_code);
-		kprintf("waitpid error code:%d\n",err_code);
 		int err = copyout(&err_code, status, sizeof(int));
 		if(err) {
 			*errptr = EFAULT;
 			return -1;
 		}
-		*errptr = 0;
-		return pid;
+	
+	//reclaim memory for child process if the child process has no threads.
+	if(child->p_numthreads == 0) { 
+		kprintf("destroying child %d\n",child->proc_id);
+		proc_destroy(child);
+		recycle_pid(pid);
+		}
+	}
+	else {
+		kprintf("No WIFEXITED\n");	
 	}
 	*errptr = 0;
 	return pid;

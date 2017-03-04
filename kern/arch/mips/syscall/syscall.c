@@ -165,6 +165,7 @@ syscall(struct trapframe *tf)
 
 		case SYS_waitpid:
 		retval = sys_waitpid(tf->tf_a0,(userptr_t)tf->tf_a1,0,&err);
+//		kprintf("syscall.c:waitpid value:%d\n",*((int*)(tf->tf_a1)));
 		break;
 
 	    default:
