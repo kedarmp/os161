@@ -34,10 +34,12 @@ void fhandle_destroy(struct fhandle *h,int fd) {
 	h->rcount--;
 	lock_release(h->lock);
 	if(h->rcount == 0) {
+		vfs_close(h->file);
 		lock_destroy(h->lock);
 		kfree(h);
 		h = NULL;
 		curproc->ftable[fd] = NULL;
+
 	}
 	
 

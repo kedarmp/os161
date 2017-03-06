@@ -20,8 +20,6 @@ int sys_close(int fd,int *errptr) {
 		*errptr = EBADF;
 		return -1;
 	}
-	kprintf("closing fd:%d\n",fd);
-	vfs_close(f_handle_name->file);
 	fhandle_destroy(f_handle_name,fd);
 	*errptr = 0;
 	return 0;

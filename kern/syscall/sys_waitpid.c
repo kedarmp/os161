@@ -46,7 +46,7 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 	//reclaim memory for child process if the child process has no threads.
 	if(child->p_numthreads == 0) { 
 		kprintf("destroying child %d\n",child->proc_id);
-		proc_destroy(child);
+		// proc_destroy(child);
 		recycle_pid(pid);
 		}
 	}
