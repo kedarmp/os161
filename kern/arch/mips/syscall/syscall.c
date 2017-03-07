@@ -155,7 +155,7 @@ syscall(struct trapframe *tf)
 		retval = sys_getpid();
 		break;
 
-		case SYS_fork://pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc, void (*func)(void *, unsigned long),int *errptr)
+		case SYS_fork:
 		retval = sys_fork(tf,curproc,&err);
 		break;
 
@@ -166,19 +166,10 @@ syscall(struct trapframe *tf)
 
 		case SYS_waitpid:
 		retval = sys_waitpid(tf->tf_a0,(userptr_t)tf->tf_a1,0,&err);
-//		kprintf("syscall.c:waitpid value:%d\n",*((int*)(tf->tf_a1)));
 		break;
 
-		case SYS_execv: {
-
-		// kprintf("Pname:%s\n",(char *)tf->tf_a0);
-		// int i;
-		// for(i=0;i<5;i++) {
-		// 	kprintf("Arg:%s\n", ((char **)(tf->tf_a1))[i]);
-		// }
-		// retval = sys_execv((const_userptr_t)tf->tf_a0,(const_userptr_t)tf->tf_a1,&err);
-			retval = sys_execv((char*)tf->tf_a0,(char**)tf->tf_a1,&err);
-	} 
+		case SYS_execv: 
+			retval = sys_execv((char*)tf->tf_a0,(char**)tf->tf_a1,&err); 
 		break;
 
 	    default:

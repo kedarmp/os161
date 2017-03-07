@@ -10,5 +10,4 @@
 #include <syscall.h>
 #include <test.h>
 
-// int sys_execv(const_userptr_t progname, const_userptr_t args, int *errptr);
 int sys_execv(char* user_progname, char** user_args, int *errptr) ;

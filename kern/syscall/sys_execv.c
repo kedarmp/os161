@@ -1,52 +1,45 @@
 #include <sys_execv.h>
 #include <thread.h>
 #include <limits.h>
-
 #include <copyinout.h>
 
-// int sys_execv(const_userptr_t user_progname, const_userptr_t user_args, int *errptr) {
 int sys_execv(char* user_progname, char** user_args, int *errptr) {
-
-	kprintf("start");
-	// kprintf("Pname:%s\n",user_progname);
-	
+	int i = 0, j = 0, n_args = 0, err = 0;
+	char **args;
 	char progname[PATH_MAX];
-	char *args[ARG_MAX];
-
 	size_t got;
-	int err = copyinstr((const_userptr_t)user_progname, progname, PATH_MAX, &got);
+	while(user_args[n_args++]!=NULL)
+		;
+	args = kmalloc(sizeof(char *)*(--n_args));	//n_args strings
+	i=0;
+	//extract each string argument via copyinstr
+	while(user_args[i]!=NULL) {
+		while(user_args[i][j++]!='\0')
+			;
+		args[i] = kmalloc(sizeof(char)*j);
+		err = copyinstr((const_userptr_t)user_args[i],args[i],j,&got);
+		if(err) {
+			*errptr = err;
+			return -1;
+		}
+		i++;
+	}
+	//checking
+	for(i=0;i<n_args;i++)
+		kprintf("Argument %d:%s\n",i+1,args[i]);
+
+	err = copyinstr((const_userptr_t)user_progname, progname, PATH_MAX, &got);
 	if(err!=0) 
 	{
 		*errptr = err;
 		return -1;	//or EFAULT?
 	}
-	
-	kprintf("Programe name:%s",progname);
-	
-	// //arg checking
-	// // int num_args = 0;
-	//int i;
-	// err = copyin((const_userptr_t)*user_args, args, ARG_MAX);
-	// if(err!=0)
-	// {
-	// 	*errptr = err;
-	// 	return -1;	//or EFAULT?
-	// }
-	kprintf("1st arg:%s",user_args[1]);
-	copyin((const_userptr_t)user_args[1], args[1], PATH_MAX);//((tf->tf_a1))[i]
-	
-	// int i;
-	// for(i=0;i<ARG_MAX && user_args[i]!=NULL;i++) {
-	// 	// copyinstr((const_userptr_t)user_args[i], args[i], PATH_MAX, &got);//((tf->tf_a1))[i]
-	// }
+	kprintf("Programe name:%s\n",progname);	
+	//at this point, 'n_args' arguments have been copied correctly(via copyin*) into args[]
 
-	kprintf("copyin passed");
-	// for(i=0; i<ARG_MAX ;i++) 
-	// {
-	// 	kprintf("Arg %d : %s \n",i,args[i]);
-	// }
-	// (void)user_args;
-	(void)errptr;
+
+	//Old runprogram code starts here
+		
 	// struct addrspace *as;
 	// struct vnode *v;
 	// vaddr_t entrypoint, stackptr;
