@@ -38,7 +38,7 @@ int
 main(void)
 {
 	/* Just exit with success. */
-	int pid = fork();
+	/*int pid = fork();
 	if(pid == 0)
 	{
 		printf("Child");
@@ -46,7 +46,15 @@ main(void)
 	else 
 	{
 		printf("Parent");
-	}
-	exit(0);
+	}*/
 
+	char* args[3];
+	char arg0[5] = "arg0";
+	char arg1[5] = "arg1";
+	args[0] = arg0;
+	args[1] = arg1;
+	args[2] = NULL;
+	execv("bin/forktest",args);
+	printf("should not print");
+	exit(0);
 }

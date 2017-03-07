@@ -43,9 +43,10 @@
 #include <file_lseek.h>
 #include <sys_getpid.h>
 #include <sys_fork.h>
- #include <sys_exit.h>
- #include <sys_waitpid.h>
+#include <sys_exit.h>
+#include <sys_waitpid.h>
 #include <addrspace.h>
+#include <sys_execv.h>
 /*
  * System call dispatcher.
  *
@@ -166,6 +167,18 @@ syscall(struct trapframe *tf)
 		case SYS_waitpid:
 		retval = sys_waitpid(tf->tf_a0,(userptr_t)tf->tf_a1,0,&err);
 //		kprintf("syscall.c:waitpid value:%d\n",*((int*)(tf->tf_a1)));
+		break;
+
+		case SYS_execv: {
+
+		// kprintf("Pname:%s\n",(char *)tf->tf_a0);
+		// int i;
+		// for(i=0;i<5;i++) {
+		// 	kprintf("Arg:%s\n", ((char **)(tf->tf_a1))[i]);
+		// }
+		// retval = sys_execv((const_userptr_t)tf->tf_a0,(const_userptr_t)tf->tf_a1,&err);
+			retval = sys_execv((char*)tf->tf_a0,(char**)tf->tf_a1,&err);
+	} 
 		break;
 
 	    default:
