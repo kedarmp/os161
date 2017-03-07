@@ -54,7 +54,7 @@ main(void)
 	args[0] = arg0;
 	args[1] = arg1;
 	args[2] = NULL;
-	execv("bin/forktest",args);
+	execv("testbin/forktest",args);
 	printf("should not print");
 	exit(0);
 }
