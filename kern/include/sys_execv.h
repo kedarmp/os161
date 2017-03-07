@@ -9,5 +9,8 @@
 #include <vfs.h>
 #include <syscall.h>
 #include <test.h>
+#include <limits.h>
 
-int sys_execv(char* user_progname, char** user_args, int *errptr) ;
+
+extern char ev_buff[ARG_MAX];
+int sys_execv(char* user_progname, char** user_args, int *errptr);
