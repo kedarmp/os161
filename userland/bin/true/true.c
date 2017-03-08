@@ -49,8 +49,8 @@ main(void)
 	}*/
 
 	char* args[3];
-	char arg0[5] = "arg0";
-	char arg1[5] = "arg1";
+	char arg0[9] = "Chakalaka";
+	char arg1[5] = "InYou";
 	args[0] = arg0;
 	args[1] = arg1;
 	args[2] = NULL;

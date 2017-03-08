@@ -3,7 +3,7 @@
 #include <copyinout.h>
 
 char ev_buff[ARG_MAX];
-void load_kernel_buffer(char **args);
+void load_kernel_buffer(char **args,int n_args);
 
 int sys_execv(char* user_progname, char** user_args, int *errptr) {
 	int i = 0, j = 0, n_args = 0, err = 0;
@@ -40,7 +40,7 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 	kprintf("Programe name:%s\n",progname);	
 	//at this point, 'n_args' arguments have been copied correctly(via copyin*) into args[]
 
-	load_kernel_buffer(args);
+	load_kernel_buffer(args,n_args);
 
 
 	//Old runprogram code starts here
@@ -72,8 +72,6 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 	 proc_setas(as);
 	 as_activate();
 
-
-	
 	 /* Load the executable. */
 	 result = load_elf(v, &entrypoint);
 	 if (result) {
@@ -105,8 +103,38 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 		return -1;
 }
 
-void load_kernel_buffer(char **args) {
+void load_kernel_buffer(char **args,int n_args) {
 	bzero(ev_buff,ARG_MAX);
+	int start_address = 4*n_args+4;
+	int i = 0;
+	int j = 0;
+	int offset = start_address;
+	for(i=0;i<n_args;i++)
+	{
+		while(args[i][j++]!='\0');
+		memcpy(ev_buff+offset,args[i],j-1);
+		ev_buff[offset+j] = '\0';
+		//args[i] = ev_buff+offset;
+		offset += j;
+		if((offset % 4) != 0)
+		{
+			int append_null = 4 - (offset % 4);
+			int traverse;
+			for(traverse = 0; traverse < append_null; traverse++)
+			{
+				ev_buff[offset+traverse] = '\0';
+			}
+			offset+=append_null;
+		}
+	}
+	
+	for(i=start_address;i<offset;i++)
+	{
+		kprintf("Val: %s\n",ev_buff+i);
+	}
+	
+	//kprintf("Argummm1:%s\n",ev_buff+start_address+8);
+	
 	/*memcpy(ev_buff,args[0],4);	//sizeof should return 4
 	kprintf("Original value:%s\n",args[0]);
 
@@ -115,11 +143,6 @@ void load_kernel_buffer(char **args) {
 
 	kprintf("Copied value:%s",copied_ptr);
 	*/
-
-	
-
-
-
 }
 
 
