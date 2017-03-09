@@ -48,12 +48,14 @@ main(void)
 		printf("Parent");
 	}*/
 
-	char* args[3];
-	char arg0[9] = "Chakalaka";
-	char arg1[5] = "InYou";
+	char* args[4];
+	char arg0[] = "Checkers";
+	char arg1[] = "chess";
+	char arg2[] = "ko";
 	args[0] = arg0;
 	args[1] = arg1;
-	args[2] = NULL;
+	args[2] = arg2;
+	args[3] = NULL;
 	execv("testbin/forktest",args);
 	printf("should not print");
 	exit(0);
