@@ -49,7 +49,9 @@ main(int argc, char *argv[])
 	snprintf(buf, 16, "argc: %d", argc);
 	secprintf(SECRET, buf, "/testbin/argtest");
 
+
 	for (i=0; i<=argc; i++) {
+		tprintf("argv[%d]=%p\n",i,argv[i]);
 		tmp = argv[i];
 		if (tmp==NULL) {
 			tmp = "[NULL]";

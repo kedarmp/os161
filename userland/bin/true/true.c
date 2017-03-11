@@ -49,14 +49,16 @@ main(void)
 	}*/
 
 	char* args[4];
-	char arg0[] = "Checkers";
-	char arg1[] = "chess";
+	char arg0[] = "testbin/argtest";
+	char arg1[] = "abcd";
 	char arg2[] = "ko";
+	// char arg3[]= "testbin/argtest";
 	args[0] = arg0;
 	args[1] = arg1;
 	args[2] = arg2;
+	// args[3] = arg2;
 	args[3] = NULL;
-	execv("testbin/forktest",args);
+	execv("testbin/argtest",args);
 	printf("should not print");
 	exit(0);
 }

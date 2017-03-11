@@ -3,34 +3,131 @@
 #include <copyinout.h>
 
 char ev_buff[ARG_MAX];
-void load_kernel_buffer(char **args,int n_args, userptr_t *argv_address);
+//int load_kernel_buffer(int n_args, userptr_t *argv_address,vaddr_t stack,int full_size);
 
+//NEW ATTEMPT
 int sys_execv(char* user_progname, char** user_args, int *errptr) {
+	bzero(ev_buff,ARG_MAX);
 	int i = 0, j = 0, n_args = 0, err = 0;
-	char **args;
+	
 	char progname[PATH_MAX];
 	size_t got;
-	while(user_args[n_args++]!=NULL)
-		;
-	args = kmalloc(sizeof(char *)*(--n_args));	//n_args strings
+	int full_size = 0;
 	i=0;
-	//extract each string argument via copyinstr
+	int ptr_len=0;
+
+	//copy pointers
 	while(user_args[i]!=NULL) {
-		while(user_args[i][j++]!='\0')
-			;
-		args[i] = kmalloc(sizeof(char)*j);
-		err = copyinstr((const_userptr_t)user_args[i],args[i],j,&got);
+	//copy pointers
+		err = copyin((const_userptr_t)&user_args[i],(ev_buff+ptr_len),4);
 		if(err) {
 			*errptr = err;
 			//kfree above stuff
 			return -1;
 		}
+		ptr_len+=4;
+		i++;
+		n_args++;
+		full_size+=4;
+	}
+	//copy null pointer?
+	// *(void**)(ev_buff+ptr_len) = NULL;
+	// ptr_len++;
+	ptr_len+=4;
+	full_size+=4;
+
+	//kprintf("number of args:%d \n",n_args);
+	int arg_len=ptr_len;
+
+	//copying strings
+
+	i=0;
+	while(i < n_args) {
+		j=0;
+		while(user_args[i][j++]!='\0')
+			;
+		int mod_str_len = 0;
+		if(j%4 !=0 ) {
+			mod_str_len = j+(4-(j%4));
+		}
+		else {
+			mod_str_len = j;
+		}
+		// kprintf("@mod_str_len:%d\n",mod_str_len);
+		// kprintf("copy to:%p (%u)\n",(void*)args_start + arg_end,args_start + arg_end);
+		//kprintf("evbuff+arg:%p \n",ev_buff + arg_len);
+		err = copyinstr((const_userptr_t)user_args[i],(ev_buff + arg_len),j,&got);
+		if(err) {
+			//kprintf("error copying arg\n");
+			return err;
+			//kfree above stuff
+		}
+		arg_len+=j;
+		int traverse;
+		for(traverse = 0;traverse<(mod_str_len-j);traverse++)
+		{
+			*(ev_buff+arg_len+traverse) = '\0';
+		}
+		arg_len += traverse;
+		full_size+=mod_str_len;
 		i++;
 	}
-	//checking
-	// for(i=0;i<n_args;i++)
-	// 	kprintf("Argument %d:%s\n",i+1,args[i]);
 
+	//make pointers point to the right place
+	void ** ptr = (void**) ev_buff;
+	int args_start = 4*n_args+4;
+	int padded_len = 0;
+	int end_ptr = args_start;
+	int index = 0;
+
+	// for(i=0;i<full_size;i++) {
+	// 	kprintf("%c \n",ev_buff[i]);
+	// }
+	//kprintf("fullsize:%d\n", full_size);
+
+	for(i=0;i<n_args;i++) {
+	// 	//find end of ith argument
+
+		padded_len=0;
+		while(ev_buff[end_ptr + padded_len++]!='\0');	//first null
+		// kprintf("pL:%d\n",padded_len);
+		index = 0;
+		while(1) {
+			index = end_ptr + padded_len++;
+			while(index<full_size && ev_buff[index]=='\0') {	//second null
+				index = end_ptr + padded_len++;
+			}
+			break;
+		}
+		padded_len--;		//length of arg+padding
+
+		//kprintf("Arg %d in ev_buff is %d bytes long \n",i,padded_len);
+
+		end_ptr += padded_len;
+		ptr[i] = ev_buff + args_start;
+		//kprintf("ptr[i]:%p \n",ev_buff + args_start);
+		args_start += padded_len;	//update arg_base
+		
+		 //kprintf("Pointer %d points to %p:\n",i,ptrs[i]);
+		// kprintf("Address of ith arg:%p\n",ptrs[i]);
+	}
+
+	// for(i=0;i<full_size;i++) {
+	// 	if(ev_buff[i]=='\0')
+	// 		//kprintf("@");
+	// 	//kprintf("%c",ev_buff[i]);
+	// }
+
+	// kprintf("\n");
+
+	// for(i=0;i<n_args;i++)
+	// {
+	// 	kprintf("ptr value : %s \n",(char *)ptr[i]);
+	// }
+	
+	//old	
+
+	// kprintf("FINAL LENGTH:%d\n",args_len);
 	err = copyinstr((const_userptr_t)user_progname, progname, PATH_MAX, &got);
 	if(err!=0) 
 	{
@@ -46,8 +143,6 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 	 struct vnode *v;
 	 vaddr_t entrypoint, stackptr;
 	 int result;
-
-	 
 
 	 /* Open the file. */
 	 result = vfs_open(progname, O_RDONLY, 0, &v);
@@ -92,12 +187,50 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 	 }
 
 
-	userptr_t argv_start;
-	load_kernel_buffer(args, n_args, &argv_start);
+	// int err;
+	//kprintf("stackptr before :%p \n",(void*)stackptr);
+	
+	
+	//Copying out pointers
+	i = 0;
+	void *buff = (void*) ev_buff;
+	void** ev_buff_access1 = ((void**)buff);
+	void** ev_buff_access2 = ((void**)buff);
+	void* first = ev_buff_access1[0];
+	void* stack_ptr = NULL;
+	//kprintf("FullSize : %d \n",full_size);
+	for(i = 0;i<n_args;i++)
+	{
+		//kprintf("val at ev_buff_access1 before:%p \n",ev_buff_access1[i]);
+		int diff = (int) (ev_buff_access2[i] - first);
+		stack_ptr = (stackptr - full_size + (4 * n_args + 4)) + (void*)diff;
+		
+	
+		//kprintf("OFFSET:%d\n", diff);
+		ev_buff_access1[i] = stack_ptr;
+		//kprintf("val at ev_buff_access1 after:%p \n",ev_buff_access1[i]);
+	}
+	
+	//Copying entire kernel buffer from stack bottom
+	void *maybe = (void*)ev_buff;
+	err = copyout((const void *)maybe,(userptr_t)(stackptr - full_size), full_size);
+	if (err) {
+	 	return err;
+	}
+	stackptr -= full_size;
+	//kprintf("stackptr after :%p \n",(void*)stackptr);
+	// userptr_t argv_start;
+	// result = load_kernel_buffer(n_args, &argv_start,stackptr,full_size);
+	// if (result) {
+	//  	//kfree anything?
+	//  	*errptr = result;
+	//  	return -1;
+	//  }
+
 	// kprintf("argv_start:%p\n",argv_start);
 
 	 /* Warp to user mode. */
-	 enter_new_process(n_args, argv_start,
+	 enter_new_process(n_args, (userptr_t)stackptr,
 	 		  NULL /*userspace addr of environment*/,
 	 		  stackptr, entrypoint);
 
@@ -107,142 +240,30 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 		return -1;
 }
 
-void load_kernel_buffer(char **args,int n_args, userptr_t *argv_address) {
-	bzero(ev_buff,ARG_MAX);
-	int start_address = 4*n_args+4;
-	int i = 0;
-	int j = 0;
-	int offset = start_address;
+// int load_kernel_buffer(int n_args, userptr_t *argv_address,vaddr_t stack,int full_size) {
 
+// 	int err;
+// 	vaddr_t stack_bottom = stack - full_size;
 
-	//Calculating the number of arguments and putting them in ev_buff with padding 
-	for(i=0;i<n_args;i++)
-	{
-		j = 0;
-		while(args[i][j++]!='\0');	//length of arg i
-		memcpy(ev_buff+offset,args[i],j-1);	//doesnt matter if we write j or j-1
-		ev_buff[offset+j] = '\0';
-		offset += j;
-		if((offset % 4) != 0)
-		{
-			int append_null = 4 - (offset % 4);
-			int traverse;
-			for(traverse = 0; traverse < append_null; traverse++)
-			{
-				ev_buff[offset+traverse] = '\0';
-			}
-			offset+=append_null;
-		}
-	}
+// 	//Copying out pointers
+// 	int i = 0;
 
-	//start_address is the first available position that can be used to put values in
+// 	void** ev_buff_access1 = ((void**)ev_buff);
+// 	void** ev_buff_access2 = ((void**)ev_buff);
+// 	void* stack_ptr = NULL;
 
-	// for(i=start_address;i<offset;i++)
-	// {
-	// 	kprintf("Val: %c\n",(ev_buff[i]));
-	// }
-
-	char *ptrs[n_args];
-	char *stack_base = (char*)0x80000000;
-	int end_ptr = start_address;
-
-	// kprintf("stack base:%u\n",(int)stack_base);	//decimal for convenience
-	//setup pointers
+// 	for(i = 0;i<n_args;i++)
+// 	{
+// 		stack_ptr = stack_bottom + ev_buff_access1[i];
+// 		ev_buff_access2[i] = stack_ptr;
+// 	}
 	
-	char *arg_base = stack_base - (offset - start_address);	//first location from which arguments start and below which pointers (will) reside
-	// kprintf("arg base:%u\n",(int)arg_base);
-	
-	int arglen = 0; int index=0;
-	
-	// ptrs[] is an array of pointers that point to addresses in the stack
-	
-	for(i=0;i<n_args;i++) {
-		//find end of ith argument
-		arglen=0;
-		while(ev_buff[end_ptr + arglen++]!='\0');	//first null
-		index = 0;
-		while(1) {
-			index = end_ptr + arglen++;
-			while(index<offset && ev_buff[index]=='\0') {	//second null
-				index = end_ptr + arglen++;
-			}
-			break;
-		}
-		arglen--;		//length of arg+padding
+// 	//Copying entire kernel buffer from stack bottom
+// 	err = copyout((const void *)ev_buff,(userptr_t)stack_bottom,full_size);
+// 	if (err) {
+// 	 	return err;
+// 	}
 
-		// kprintf("Arg %d in ev_buff is %d bytes long\n",i,arglen);
-
-		end_ptr += arglen;
-		ptrs[i] = arg_base;
-		arg_base += arglen;	//update arg_base
-		
-		// kprintf("Address of ith arg:%u\n",(int)ptrs[i]);
-		// kprintf("Address of ith arg:%p\n",ptrs[i]);
-	}
-
-	
-	//copy pointers to bottom of stack
-
-	char* stack_bottom = stack_base - offset;
-
-	memcpy(argv_address, &stack_bottom , 4);	//start of argv
-
-	// kprintf("offset:%d\n",offset);
-	// kprintf("stack_bottom before copying ptrs:%u\n",(int)stack_bottom);
-	// kprintf("stack_bottom before copying ptrs:%p\n",stack_bottom);	//0x7fffffdc = 2147483612
-	for(i=0; i<n_args; i++) {	//copy pointers including the NULL pointer
-		// kprintf("copying pointer:%d to stack(%u)\n",i,(int)ptrs[i]);
-		// kprintf("copying pointer:%d to stack(%p)\n",i,ptrs[i]);
-		memcpy(stack_bottom,&ptrs[i],4);	//copy &ptrs[i] which means the pointer itself. If you write ptrs[i], then it will copy the actual content at that address(ie. the string)
-		stack_bottom+=4;
-	}
-	
-	//copy NULL pointer
-	*stack_bottom = 0x0;	//setting to NULL will NOT work
-	stack_bottom += 4;
-
-	//copy arguments
-	int stack_offset = 0;
-	for(i=0;i<n_args;i++)
-	{
-		j = 0;
-		while(args[i][j++]!='\0');	//length of arg i
-		memcpy(stack_bottom + stack_offset,args[i], j-1);	//doesnt matter if we write j or j-1
-		//kprintf("STAKC BOTTOM + STACK OFFSET: %p \n",stack_bottom + stack_offset);
-		stack_bottom[stack_offset+j] = '\0';
-		stack_offset += j;
-		if((stack_offset % 4) != 0)
-		{
-			int append_null = 4 - (stack_offset % 4);
-			int traverse;
-			for(traverse = 0; traverse < append_null; traverse++)
-			{
-				stack_bottom[stack_offset + traverse] = '\0';
-			}
-			stack_offset += append_null;
-		}
-	}
-
-
-
-
- 	
- 	// //print stack arguments
-	// stack_bottom = stack_base - offset;
-	// for(i=0;i<offset;i++)
-	// {
-	// 	kprintf("Val: %c\n",(stack_bottom[i]));
-	// }
-
-	// char **arg0ptr = kmalloc(4);
-	// memcpy(arg0ptr, stack_bottom, 4);
-	// //try to print value via pointer stored in stack
-	// kprintf("check val of ptr0:%s\n",(char*)*arg0ptr);
-
-	
-
-}
-
-
-
-
+// 	memcpy(argv_address,&stack_bottom,4);
+// 	return 0;
+// }
