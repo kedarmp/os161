@@ -107,6 +107,14 @@ struct proc * call_proc_create(const char *proc_name)
 	struct proc *ret_proc = proc_create(proc_name);
 	if(ret_proc==NULL) 
 		return NULL;
+	
+	spinlock_acquire(&curproc->p_lock);
+	if (curproc->p_cwd != NULL) {
+		VOP_INCREF(curproc->p_cwd);
+		ret_proc->p_cwd = curproc->p_cwd;
+	}
+	spinlock_release(&curproc->p_lock);
+	
 	return ret_proc;
 }
 

@@ -46,7 +46,6 @@ pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *err
 		{	
 			//increase reference counts of all file handles in parent before copying them to child(also use locks someplace)
 			parent_proc -> ftable[i] -> rcount += 1;
-			
 			child -> ftable[i] = parent_proc -> ftable[i];
 		}
 	}
