@@ -13,7 +13,7 @@ ssize_t sys_read(uint32_t fd_u, userptr_t buffer_u, uint32_t size_u,int *errptr)
 	
 	if(buffer_u==NULL)
 	{
-		*errptr = EINVAL;
+		*errptr = EFAULT;
 		return -1;
 	}		
 	if(fd_u >= __OPEN_MAX)	
@@ -25,6 +25,11 @@ ssize_t sys_read(uint32_t fd_u, userptr_t buffer_u, uint32_t size_u,int *errptr)
 	struct fhandle *f_handle_name = (curproc->ftable[fd_u]);	
 	if(f_handle_name == NULL)
 	{
+		*errptr = EBADF;
+		return -1;
+	}
+	//check that mode is  correct for the file opened
+	if((O_ACCMODE&f_handle_name->open_mode) == O_WRONLY) {
 		*errptr = EBADF;
 		return -1;
 	}

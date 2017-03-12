@@ -11,7 +11,7 @@ int sys_open(const_userptr_t filename, int flags,int *errptr) {
 	//TO-DO all kinds of possible checks on arguments here
 	if(filename==NULL)
 	{
-		*errptr = EINVAL;
+		*errptr = EFAULT;
 		return -1;
 	}      
         
@@ -33,14 +33,16 @@ int sys_open(const_userptr_t filename, int flags,int *errptr) {
 	if(count<__OPEN_MAX) {
 		//create a new file handle
 		//see what happens if a process tries to reopen the same file. Does this fail? If it does, then we're good to go else we need manual checking of some sort
-		struct fhandle *handle = fhandle_create(buffer, flags);
+		struct fhandle *handle = fhandle_create(buffer, flags,&err);
 		if(handle == NULL) {
-			kprintf("\nError in fhandle_create:\n");	
-			//set errno to what? can we check here whether handle was NULL becaue of the file being already opened?
-			return -1;  //which errcode to return?
+			if(err) {	//vfs_open only returns 8 (EINVAL) if flags are incorrect
+				*errptr = err;
+				return -1; 
+			}
 		}
 		curproc->ftable[count] = handle;
 		handle->rcount++;
+		handle->open_mode = flags;
 		if(flags == (O_WRONLY|O_APPEND) || flags == (O_RDWR|O_APPEND)) {
 			//get size of file
 			struct stat file_info;

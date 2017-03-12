@@ -4,8 +4,9 @@
 #include <current.h>
 #include <proc.h>
 
-struct fhandle* fhandle_create(char *file_name, int open_mode) {
+struct fhandle* fhandle_create(char *file_name, int open_mode,int *errptr) {
 	struct fhandle *f;
+	*errptr = 0;	//by default. Does not always mean success.Callers should check this value only on return NULL
 	f = kmalloc(sizeof(*f));
 	if(f==NULL)
 		return NULL;
@@ -21,6 +22,7 @@ struct fhandle* fhandle_create(char *file_name, int open_mode) {
 
 	int err = vfs_open(file_name,open_mode,0,&f->file);
 	if(err) {
+		*errptr = err;
 		lock_destroy(f->lock);
 		kfree(f);
 		return NULL;

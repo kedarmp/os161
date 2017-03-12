@@ -8,7 +8,7 @@
 
 int sys_close(int fd,int *errptr) {
 
-	if(fd >= __OPEN_MAX)	
+	if(fd<0 || fd >= __OPEN_MAX)	
 	{
 		*errptr = EBADF;
 		return -1;

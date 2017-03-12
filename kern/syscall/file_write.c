@@ -11,7 +11,7 @@ ssize_t sys_write(uint32_t fd_u, userptr_t buffer_u, uint32_t size_u,int *errptr
 	//TO-DO all kinds of possible checks on arguments here
 	if(buffer_u==NULL)
 	{
-		*errptr = EINVAL;
+		*errptr = EFAULT;
 		return -1;
 	}		
 	if(fd_u >= __OPEN_MAX)	
@@ -26,6 +26,12 @@ ssize_t sys_write(uint32_t fd_u, userptr_t buffer_u, uint32_t size_u,int *errptr
 		*errptr = EBADF;
 		return -1;
 	}
+	//check that mode is  correct for the file opened
+	//also ignore check for stdout
+        if(fd_u!=1 && (O_ACCMODE&f_handle_name->open_mode) == O_RDONLY) {
+	        *errptr = EBADF;
+                return -1;
+        }
 
 	lock_acquire(f_handle_name->lock);
 	//kprintf("Filehandle:%d, sizze:%d\n:",fd_u,size_u);

@@ -243,9 +243,13 @@ proc_create_runprogram(const char *name)
 	char console1[5] = "con:";
 	char console2[5] = "con:";
 
-	newproc->ftable[0] = fhandle_create(console0, O_RDONLY);	//stdin
-	newproc->ftable[1] = fhandle_create(console1, O_WRONLY);	//stdout
-	newproc->ftable[2] = fhandle_create(console2, O_WRONLY);	//stderr
+	int err=0;
+	newproc->ftable[0] = fhandle_create(console0, O_RDONLY,&err);	//stdin
+	if(err) return NULL;
+	newproc->ftable[1] = fhandle_create(console1, O_WRONLY,&err);	//stdout
+	if(err) return NULL;
+	newproc->ftable[2] = fhandle_create(console2, O_WRONLY,&err);	//stderr
+	if(err) return NULL;
 
 	/*
 	 * Lock the current process to copy its current directory.
