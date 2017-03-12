@@ -47,6 +47,7 @@
 #include <sys_waitpid.h>
 #include <addrspace.h>
 #include <sys_execv.h>
+#include <sys_dup2.h>
 /*
  * System call dispatcher.
  *
@@ -170,6 +171,10 @@ syscall(struct trapframe *tf)
 
 		case SYS_execv: 
 			retval = sys_execv((char*)tf->tf_a0,(char**)tf->tf_a1,&err); 
+		break;
+
+		case SYS_dup2: 
+			retval = sys_dup2(tf->tf_a0,tf->tf_a1,&err); 
 		break;
 
 	    default:

@@ -1,6 +1,7 @@
 #include <sys_execv.h>
 #include <thread.h>
 #include <copyinout.h>
+#include <kern/errno.h>
 
 char ev_buff[ARG_MAX];
 //int load_kernel_buffer(int n_args, userptr_t *argv_address,vaddr_t stack,int full_size);
@@ -16,12 +17,26 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 	i=0;
 	int ptr_len=0;
 
+	//Progname null check
+	if(user_progname == NULL)
+	{
+		*errptr = EFAULT;
+		return -1;	
+	}
+
+	//Check if the args are null
+	if(user_args == NULL)
+	{
+		*errptr = EFAULT;
+		return -1;
+	}
+
 	//copy pointers
 	while(user_args[i]!=NULL) {
 	//copy pointers
 		err = copyin((const_userptr_t)&user_args[i],(ev_buff+ptr_len),4);
 		if(err) {
-			*errptr = err;
+			*errptr = EFAULT;
 			//kfree above stuff
 			return -1;
 		}
@@ -29,6 +44,12 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 		i++;
 		n_args++;
 		full_size+=4;
+	}
+	//Check if n_args is atleast ARG_MAX
+	if(n_args > ARG_MAX)
+	{
+		*errptr = ENOMEM;
+		return -1; 
 	}
 	//copy null pointer?
 	// *(void**)(ev_buff+ptr_len) = NULL;
@@ -59,6 +80,7 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 		err = copyinstr((const_userptr_t)user_args[i],(ev_buff + arg_len),j,&got);
 		if(err) {
 			//kprintf("error copying arg\n");
+			*errptr = EFAULT;
 			return err;
 			//kfree above stuff
 		}
@@ -111,7 +133,6 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 		 //kprintf("Pointer %d points to %p:\n",i,ptrs[i]);
 		// kprintf("Address of ith arg:%p\n",ptrs[i]);
 	}
-
 	// for(i=0;i<full_size;i++) {
 	// 	if(ev_buff[i]=='\0')
 	// 		//kprintf("@");
@@ -131,8 +152,13 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 	err = copyinstr((const_userptr_t)user_progname, progname, PATH_MAX, &got);
 	if(err!=0) 
 	{
-		*errptr = err;
+		*errptr = EFAULT;
 		return -1;	//or EFAULT?
+	}
+	if(got < 2 || got > PATH_MAX)
+	{
+		*errptr = EINVAL;
+		return -1;
 	}
 	// kprintf("Programe name:%s\n",progname);	
 	//at this point, 'n_args' arguments have been copied correctly(via copyin*) into args[]

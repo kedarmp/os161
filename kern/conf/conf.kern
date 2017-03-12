@@ -404,6 +404,7 @@ file syscall/sys_fork.c
 file syscall/sys_exit.c
 file syscall/sys_waitpid.c
 file syscall/sys_execv.c
+file syscall/sys_dup2.c
 
 #
 # Startup and initialization

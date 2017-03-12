@@ -14,8 +14,7 @@ int sys_open(const_userptr_t filename, int flags,int *errptr) {
 		*errptr = EINVAL;
 		return -1;
 	}      
-        
-
+       
 	char buffer[__PATH_MAX];
 	size_t got;
 	int err = copyinstr(filename, buffer, __PATH_MAX, &got);
@@ -35,7 +34,7 @@ int sys_open(const_userptr_t filename, int flags,int *errptr) {
 		//see what happens if a process tries to reopen the same file. Does this fail? If it does, then we're good to go else we need manual checking of some sort
 		struct fhandle *handle = fhandle_create(buffer, flags);
 		if(handle == NULL) {
-			kprintf("\nError in fhandle_create:\n");	
+			//kprintf("\nError in fhandle_create:\n");	
 			//set errno to what? can we check here whether handle was NULL becaue of the file being already opened?
 			return -1;  //which errcode to return?
 		}
