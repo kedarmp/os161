@@ -14,8 +14,7 @@ int sys_open(const_userptr_t filename, int flags,int *errptr) {
 		*errptr = EFAULT;
 		return -1;
 	}      
-        
-
+       
 	char buffer[__PATH_MAX];
 	size_t got;
 	int err = copyinstr(filename, buffer, __PATH_MAX, &got);
