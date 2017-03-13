@@ -39,7 +39,8 @@
 #include <vm.h>
 #include <mainbus.h>
 #include <syscall.h>
-
+#include <proc.h>
+#include <sys_exit.h>
 
 /* in exception-*.S */
 extern __DEAD void asm_usermode(struct trapframe *tf);
@@ -114,7 +115,16 @@ kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr)
 
 	kprintf("Fatal user mode trap %u sig %d (%s, epc 0x%x, vaddr 0x%x)\n",
 		code, sig, trapcodenames[code], epc, vaddr);
-	panic("I don't know how to handle this\n");
+
+	kprintf("Curthread ID:%s\n",curthread->t_name);
+//	struct proc * parent = get_proc(curproc->parent_proc_id);
+//	V(parent->sem);
+//	proc_remthread(curthread);
+//	kprintf("My parent is:%d and state is: %d\n",curproc->parent_proc_id,get_proc());
+	//schedule();
+	
+//	thread_exit();
+	sys_exit(code);
 }
 
 /*

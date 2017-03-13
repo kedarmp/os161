@@ -9,7 +9,7 @@ char ev_buff[ARG_MAX];
 //NEW ATTEMPT
 int sys_execv(char* user_progname, char** user_args, int *errptr) {
 	bzero(ev_buff,ARG_MAX);
-	int i = 0, j = 0, n_args = 0, err = 0;
+	int i = 0, n_args = 0, err = 0;
 	
 	char progname[PATH_MAX];
 	size_t got;
@@ -30,23 +30,25 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 		*errptr = EFAULT;
 		return -1;
 	}
-	//compare user_args with 0x40000000	//find why. Also modify this to be robust
-	kprintf("user_args:%p",user_args);
+	//Make sure that the array pointed to by user_args is good - copyin does that for us - simply try to copy the array into temp
+	char **temp = NULL;
+	err = copyin((const_userptr_t)user_args,&temp,4);
+                if(err) {
+                        *errptr = EFAULT;
+                        //kfree above stuff
+                        return -1;
+                }
+
+/*	kprintf("user_args:%p",user_args);
 	if(user_args == (char**) 0x40000000) {
 		*errptr = EFAULT;
 		return -1;
 
 	}
-	//TODO: check that every pointer INSIDE user_args also is not 0x40000000 and shit
-	
+*/	
 
 	//copy pointers
 	while(user_args[i]!=NULL) {
-	//copy pointers
-		if(user_args[i] ==  (char*) 0x40000000) {
-			*errptr = EFAULT;
-			return -1;
-		}
 		err = copyin((const_userptr_t)&user_args[i],(ev_buff+ptr_len),4);
 		if(err) {
 			*errptr = EFAULT;
@@ -77,29 +79,23 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 
 	i=0;
 	while(i < n_args) {
-		j=0;
-		while(user_args[i][j++]!='\0')
-			;
-		int mod_str_len = 0;
-		if(j%4 !=0 ) {
-			mod_str_len = j+(4-(j%4));
-		}
-		else {
-			mod_str_len = j;
-		}
-		// kprintf("@mod_str_len:%d\n",mod_str_len);
-		// kprintf("copy to:%p (%u)\n",(void*)args_start + arg_end,args_start + arg_end);
-		//kprintf("evbuff+arg:%p \n",ev_buff + arg_len);
-		err = copyinstr((const_userptr_t)user_args[i],(ev_buff + arg_len),j,&got);
+		//Note: ALWAYS copyin* first. Bad addresses are hard to catch otherwise
+		err = copyinstr((const_userptr_t)user_args[i],(ev_buff + arg_len),ARG_MAX,&got);
 		if(err) {
 			//kprintf("error copying arg\n");
 			*errptr = EFAULT;
 			return err;
 			//kfree above stuff
 		}
-		arg_len+=j;
-		int traverse;
-		for(traverse = 0;traverse<(mod_str_len-j);traverse++)
+/*		while(user_args[i][j++]!='\0')
+			;*/
+		int mod_str_len = got;
+		if(got%4 !=0 ) {
+			mod_str_len = got+(4-(got%4));
+		}
+		arg_len+=got;
+		unsigned int traverse;
+		for(traverse = 0;traverse<(mod_str_len-got);traverse++)
 		{
 			*(ev_buff+arg_len+traverse) = '\0';
 		}
