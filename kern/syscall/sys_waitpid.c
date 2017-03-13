@@ -62,21 +62,19 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 			return -1;
 		}
 	
-	
-	//reclaim memory for child process if the child process has no threads.
 	if(child->p_numthreads == 0) { 
-	//	kprintf("destroying child %d\n",child->proc_id);
+		recycle_pid(pid);
 		// proc_destroy(child);
 		}
 	}
+	//IMPORTANT NOTE:We do NOT recycle PIDs if child->p_numthreads > 0!!
 	else {
-
-//		Do we need to implement this part?
+//		Do we need to implement this part? when WIFEXITED is false..maybe process died because of a signal.
+		recycle_pid(pid);
 		if(status!=NULL)
 			kprintf("No WIFEXITED!!\n");	
 	}
 
-	recycle_pid(pid);//in any case, recycle the pid of the child, since its exited
 	*errptr = 0;
 	return pid;
 }
