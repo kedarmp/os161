@@ -162,7 +162,7 @@ syscall(struct trapframe *tf)
 
 		case SYS__exit:
 		//thread_exit();
-		sys_exit(tf->tf_a0);
+		sys_exit(tf->tf_a0, TYPE_EXITED);
 		break;
 
 		case SYS_waitpid: 

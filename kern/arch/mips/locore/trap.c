@@ -117,14 +117,8 @@ kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr)
 		code, sig, trapcodenames[code], epc, vaddr);
 
 	kprintf("Curthread ID:%s\n",curthread->t_name);
-//	struct proc * parent = get_proc(curproc->parent_proc_id);
-//	V(parent->sem);
-//	proc_remthread(curthread);
-//	kprintf("My parent is:%d and state is: %d\n",curproc->parent_proc_id,get_proc());
-	//schedule();
-	
 //	thread_exit();
-	sys_exit(code);
+	sys_exit(sig, TYPE_RECEIVED_SIG);
 }
 
 /*

@@ -5,8 +5,11 @@
 #include <file_close.h>
 #include <limits.h>
 
-void sys_exit(int exitcode) {
-	curproc->exit_code = _MKWAIT_EXIT(exitcode);
+void sys_exit(int exitcode,int type) {	//type defines the encoding for the exitcode
+	if(type == TYPE_EXITED)
+		curproc->exit_code = _MKWAIT_EXIT(exitcode);
+	else if(type == TYPE_RECEIVED_SIG)
+		curproc->exit_code = _MKWAIT_SIG(exitcode);
 	struct proc * parent = get_proc(curproc->parent_proc_id);
 	if(parent != NULL && parent->proc_id!=1)
 		V(parent->sem); 	//sem used to synch with waitpid()
