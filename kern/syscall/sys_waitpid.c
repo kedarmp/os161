@@ -52,8 +52,9 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 	//child called _exit
 	if(status!=NULL && WIFEXITED(child->exit_code))	//See manpage for status!=null 
 	{	
-		//try to copy out exit code to userptr
-		int err_code = WEXITSTATUS(child->exit_code);
+		//NOTE: The WIFEXITED etc macros are supposed to be called by the user. So, there is no  need to decode the exitcode back in the kernel space itself
+		int err_code = (child->exit_code);
+	
 	//	kprintf("err_code:%d\n",err_code);
 		int err = copyout(&err_code, status, sizeof(int));
 		if(err) {
