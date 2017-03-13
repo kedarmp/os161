@@ -38,10 +38,15 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 
 	}
 	//TODO: check that every pointer INSIDE user_args also is not 0x40000000 and shit
+	
 
 	//copy pointers
 	while(user_args[i]!=NULL) {
 	//copy pointers
+		if(user_args[i] ==  (char*) 0x40000000) {
+			*errptr = EFAULT;
+			return -1;
+		}
 		err = copyin((const_userptr_t)&user_args[i],(ev_buff+ptr_len),4);
 		if(err) {
 			*errptr = EFAULT;
@@ -53,7 +58,6 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 		n_args++;
 		full_size+=4;
 	}
-	kprintf("*111*\n");
 	//Check if n_args is atleast ARG_MAX
 	if(n_args > ARG_MAX)
 	{
@@ -71,7 +75,6 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 
 	//copying strings
 
-	kprintf("*22*\n");
 	i=0;
 	while(i < n_args) {
 		j=0;
@@ -104,7 +107,6 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 		full_size+=mod_str_len;
 		i++;
 	}
-	kprintf("*333*\n");
 	//make pointers point to the right place
 	void ** ptr = (void**) ev_buff;
 	int args_start = 4*n_args+4;
@@ -155,7 +157,6 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 	
 	//old	
 
-	kprintf("*444*\n");
 	// kprintf("FINAL LENGTH:%d\n",args_len);
 	err = copyinstr((const_userptr_t)user_progname, progname, PATH_MAX, &got);
 	if(err!=0) 
@@ -224,7 +225,6 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 	// int err;
 	//kprintf("stackptr before :%p \n",(void*)stackptr);
 	
-	kprintf("*1*\n");	
 	//Copying out pointers
 	i = 0;
 	void *buff = (void*) ev_buff;
@@ -244,7 +244,6 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 		ev_buff_access1[i] = stack_ptr;
 		//kprintf("val at ev_buff_access1 after:%p \n",ev_buff_access1[i]);
 	}
-	kprintf("*2*\n");
 	//Copying entire kernel buffer from stack bottom
 	void *maybe = (void*)ev_buff;
 	err = copyout((const void *)maybe,(userptr_t)(stackptr - full_size), full_size);
