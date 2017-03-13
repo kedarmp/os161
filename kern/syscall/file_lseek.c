@@ -38,23 +38,26 @@ off_t sys_lseek(int fd, uint32_t high, uint32_t low, int *whence, int *errptr) {
 	off_set = off_set << 32;
 	off_set = off_set|low;
 
-	//kprintf("OFFSET : %lld \n",off_set);
-	if(off_set < 0)
-	{	
-		*errptr = EINVAL;
-		lock_release(f_handle_name->lock);
-		return -1;
-	}
 
 	switch(*whence)
 	{
 		case SEEK_SET:
 		{
+			if(off_set<0) {//resulting seekpos is negative
+				*errptr = EINVAL;
+				lock_release(f_handle_name->lock);
+				return -1;
+			}
 			f_handle_name -> offset = off_set;
 		}
 		break;
 		case SEEK_CUR:
 		{
+			if(f_handle_name->offset+off_set<0) {//resulting seekpos is negative
+				*errptr = EINVAL;
+				lock_release(f_handle_name->lock);
+				return -1;
+			}
 			f_handle_name -> offset += off_set;
 		}
 		break;
@@ -74,12 +77,16 @@ off_t sys_lseek(int fd, uint32_t high, uint32_t low, int *whence, int *errptr) {
 		break;
 		default:
 		{
-			if(off_set < 0)
+			//invalid whence
+			*errptr = EINVAL;
+			lock_release(f_handle_name->lock);
+			return -1;
+			/*if(off_set < 0)
 			{
 				*errptr = EINVAL;
 				lock_release(f_handle_name->lock);
 				return -1;
-			}
+			}*/
 		}
 		break;
 	}

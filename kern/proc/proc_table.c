@@ -1,7 +1,6 @@
 //Declaring an array of structs for the process table 
 #include <limits.h>
 #include <proc_table.h>
-#define MAX_PROC 100
 
 struct proc* proc_table[MAX_PROC];
 

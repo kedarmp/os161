@@ -3,6 +3,7 @@
 #include <synch.h>
 //#include <unistd.h>
 
+#define MAX_PROC 100
 //Generate PID
 pid_t create_pid(void);
 

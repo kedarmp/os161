@@ -114,16 +114,13 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 		while(ev_buff[end_ptr + padded_len++]!='\0');	//first null
 		// kprintf("pL:%d\n",padded_len);
 		index = 0;
-		while(1) {
 			index = end_ptr + padded_len++;
 			while(index<full_size && ev_buff[index]=='\0') {	//second null
 				index = end_ptr + padded_len++;
 			}
-			break;
-		}
 		padded_len--;		//length of arg+padding
 
-		//kprintf("Arg %d in ev_buff is %d bytes long \n",i,padded_len);
+//		kprintf("Arg %d in ev_buff is %d bytes long \n",i,padded_len);
 
 		end_ptr += padded_len;
 		ptr[i] = ev_buff + args_start;
