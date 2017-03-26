@@ -15,19 +15,17 @@ struct fhandle* fhandle_create(char *file_name, int open_mode,int *errptr) {
 
 	f->lock = lock_create(file_name);
 	if(f->lock==NULL) {
-		//kfree(f);
+		kfree(f);
 		return NULL;
 	}
 	//initialize vnode
-
 	int err = vfs_open(file_name,open_mode,0,&f->file);
 	if(err) {
 		*errptr = err;
-//		lock_destroy(f->lock);
-//		kfree(f);
+		lock_destroy(f->lock);
+		kfree(f);
 		return NULL;
 	}
-
 	return f;
 }
 
@@ -35,15 +33,16 @@ void fhandle_destroy(struct fhandle *h,int fd) {
 	lock_acquire(h->lock);
 	h->rcount--;
 	lock_release(h->lock);
+
 	if(h->rcount == 0) {
+		if(fd==0 || fd==1 || fd==2)
+		return;
 		vfs_close(h->file);
-		//lock_destroy(h->lock);
-		//kfree(h);
+		 lock_destroy(h->lock);
+		 kfree(h);
 		h = NULL;
 		curproc->ftable[fd] = NULL;
-
 	}
 	
-
 }
 

@@ -7,12 +7,13 @@
 #include <fhandle.h>
 #include <sys_fork.h>
 #include <syscall.h>
+#include <file_close.h>
 
 extern void *memcpy(void *dest, const void *src, size_t len);
 
 pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *errptr)
 {
-	//Check if kernel thread isnt calling fork
+	//Check if kernel thread isnt calling fork.22880
 	if(parent_proc -> proc_id < 2)
 	{
 		*errptr = EINVAL;
@@ -48,12 +49,15 @@ pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *err
 			parent_proc -> ftable[i] -> rcount += 1;
 			child -> ftable[i] = parent_proc -> ftable[i];
 		}
-	}
+	}//TODO: Decrement count if any of the following instructions fail. (else we will have incremented the count without actually creating a new process)
 
-	struct addrspace *child_addrspace;
+	struct addrspace *child_addrspace = NULL;
 	int err = as_copy(parent_proc->p_addrspace, &child_addrspace);
 	if(err) {
 		*errptr = ENOMEM;
+		// if(child_addrspace!=NULL) {
+		// 	// as_destroy(child_addrspace);
+		// }
 		return -1;
 	}
 	child -> p_addrspace = child_addrspace;
@@ -62,6 +66,7 @@ pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *err
 	struct trapframe *child_tf = NULL;
 	child_tf = kmalloc(sizeof(struct trapframe));
 	if(child_tf==NULL) {
+		// as_destroy(child_addrspace);
 		*errptr = ENOMEM;
 		return -1;
 	}
@@ -69,6 +74,11 @@ pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *err
 
 	err = thread_fork("Userthread", child, enter_forked_process, child_tf, 0);
 	if(err) {
+		kfree(child_tf);
+		// as_destroy(child_addrspace);
+		// for(i=3;i<OPEN_MAX;i++){
+		// 	sys_close(i,&err);
+		// }
 		*errptr =err;
 		return -1;
 	}

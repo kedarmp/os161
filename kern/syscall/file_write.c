@@ -7,6 +7,8 @@
 #include <kern/errno.h>
  
 ssize_t sys_write(uint32_t fd_u, userptr_t buffer_u, uint32_t size_u,int *errptr) {
+
+	// kprintf("sys_write:fd:%d\n",fd_u);
 	
 	//TO-DO all kinds of possible checks on arguments here
 	if(buffer_u==NULL)
@@ -28,12 +30,11 @@ ssize_t sys_write(uint32_t fd_u, userptr_t buffer_u, uint32_t size_u,int *errptr
 	}
 	//check that mode is  correct for the file opened
 	//also ignore check for stdout
-        if(fd_u!=1 && (O_ACCMODE&f_handle_name->open_mode) == O_RDONLY) {
-	        *errptr = EBADF;
-                return -1;
-        }
-
-	// kprintf("Filehandle:%d ,",fd_u);
+    if(fd_u!=1 && (O_ACCMODE & f_handle_name->open_mode) == O_RDONLY) {
+        *errptr = EBADF;
+            return -1;
+    }
+	
 	// kprintf("Lock Name:%s \n",f_handle_name->lock->lk_name);
 	lock_acquire(f_handle_name->lock);
 	//kprintf("Filehandle:%d, sizze:%d\n:",fd_u,size_u);
@@ -57,7 +58,6 @@ ssize_t sys_write(uint32_t fd_u, userptr_t buffer_u, uint32_t size_u,int *errptr
 	off_t bytes_written = (off_t)(size_u - (u.uio_resid));
 	//kprintf("Apparently we wrote something! : %d \n",bytes_written);
 	f_handle_name->offset += bytes_written;
-
 	lock_release(f_handle_name->lock);
 	//Success throughout , therefore reset the errptr
 	*errptr = 0;

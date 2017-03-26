@@ -51,6 +51,8 @@
 #include <limits.h>
  #include <proc_table.h>
  #include <synch.h>
+ #include <vfs.h>
+ #include <fhandle.h>
 
 /*
  * The process for the kernel; this holds all the kernel-only threads.
@@ -144,6 +146,20 @@ proc_destroy(struct proc *proc)
 	 * incorrect to destroy it.)
 	 */
 
+	// close 0,1,2 if their rcount = 0
+	// int i=0;
+	// for(;i<3;i++) {
+	// 	struct fhandle *h = proc->ftable[i];
+	// 	if(h==NULL) continue;
+	// 	if(h->rcount ==0) {
+	// 		vfs_close(h->file);
+	// 		lock_destroy(h->lock);
+	// 		kfree(h);
+	// 		h = NULL;
+	// 		curproc->ftable[i] = NULL;
+	// 	}
+	// }
+
 	/* VFS fields */
 	if (proc->p_cwd) {
 		VOP_DECREF(proc->p_cwd);
@@ -199,8 +215,9 @@ proc_destroy(struct proc *proc)
 	}
 
 	KASSERT(proc->p_numthreads == 0);
-	spinlock_cleanup(&proc->p_lock);
 
+	spinlock_cleanup(&proc->p_lock);
+	sem_destroy(proc->sem);
 	kfree(proc->p_name);
 	kfree(proc);
 }

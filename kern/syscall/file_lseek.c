@@ -29,6 +29,7 @@ off_t sys_lseek(int fd, uint32_t high, uint32_t low, int *whence, int *errptr) {
 	//File handle console check
 	if(fd==0 || fd==1 || fd==2 || !VOP_ISSEEKABLE(f_handle_name->file))	//!VOP_ISSEEKABLE(f_handle_name->file)
 	{
+		lock_release(f_handle_name->lock);
 		*errptr = ESPIPE;
 		return -1;	
 	}

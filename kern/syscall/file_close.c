@@ -20,8 +20,8 @@ int sys_close(int fd,int *errptr) {
 		*errptr = EBADF;
 		return -1;
 	}
+	// kprintf("sys_close:fd:%d\n",fd);
 	fhandle_destroy(f_handle_name,fd);
 	*errptr = 0;
 	return 0;
-
 }

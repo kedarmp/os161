@@ -12,7 +12,7 @@
 int sys_dup2(int oldfd, int newfd, int *errptr) {
 	//use lock
 	//need to use global lock lock(notn existing one)
-
+//kprintf("dup2: oldfd:%d, newfd:%d\n",oldfd,newfd);
 int err;
 
 //oldfd is not a valid file descriptor, or newfd is a value that cannot be a valid file descriptor.
@@ -50,6 +50,7 @@ for(i = 0;i<__OPEN_MAX;i++)
 if(count == __OPEN_MAX-1)
 {
 	*errptr = EMFILE;
+	lock_release(f_handle_name->lock);
 	return -1;	
 }
 lock_release(f_handle_name->lock);

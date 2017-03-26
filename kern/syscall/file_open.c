@@ -5,7 +5,7 @@
 #include <current.h>
 #include <proc.h>
 #include <kern/errno.h>
-#include <kern/stat.h>
+#include <kern/stat.h>//1760 -> 1728
  
 int sys_open(const_userptr_t filename, int flags,int *errptr) {	
 	//TO-DO all kinds of possible checks on arguments here
@@ -14,7 +14,6 @@ int sys_open(const_userptr_t filename, int flags,int *errptr) {
 		*errptr = EFAULT;
 		return -1;
 	}      
-       
 	char buffer[__PATH_MAX];
 	size_t got;
 	int err = copyinstr(filename, buffer, __PATH_MAX, &got);
@@ -23,8 +22,8 @@ int sys_open(const_userptr_t filename, int flags,int *errptr) {
 		*errptr = err;
 		return -1;	//or EFAULT?
 	}
+	// kprintf("sys_open:fd:%s\n",buffer);
 	//kprintf("Opening file:%s",buffer);
-
 	//check if there is space in our file table to open another file
 	int count = 0;
 	for(;count<__OPEN_MAX && curproc->ftable[count]!=NULL;count++)
@@ -49,14 +48,15 @@ int sys_open(const_userptr_t filename, int flags,int *errptr) {
 			if(err)
 			{
 				*errptr = err;
+				fhandle_destroy(handle,count);
 				return -1;
 			}
 			handle->offset = file_info.st_size;	//verify if st_size should be the offset
 		}
-
 	} 
 	else 
 	{	//too many files open
+		// fhandle_destroy(handle,count);
 		*errptr = EMFILE;
 		return -1;
 	}
