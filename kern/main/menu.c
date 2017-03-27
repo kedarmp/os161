@@ -48,6 +48,7 @@
 #include "opt-net.h"
 #include "opt-synchprobs.h"
 #include "opt-automationtest.h"
+ #include <sys_waitpid.h>
 
 /*
  * In-kernel menu and command dispatcher.
@@ -148,7 +149,9 @@ common_prog(int nargs, char **args)
 	// especially once swapping is enabled.
 	thread_wait_for_count(tc);
 	//destroy proc;
-	proc_destroy(proc);
+	int err;
+	sys_waitpid(proc->proc_id, (userptr_t)&result, 0,&err);
+	//proc_destroy(proc);
 
 	return 0;
 }

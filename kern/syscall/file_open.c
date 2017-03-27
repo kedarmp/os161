@@ -38,8 +38,10 @@ int sys_open(const_userptr_t filename, int flags,int *errptr) {
 				return -1; 
 			}
 		}
+		lock_acquire(handle->lock);
 		curproc->ftable[count] = handle;
-		handle->rcount++;
+		handle->rcount = 1;
+		kprintf("open:set to %d\n",handle->rcount);
 		handle->open_mode = flags;
 		if(flags == (O_WRONLY|O_APPEND) || flags == (O_RDWR|O_APPEND)) {
 			//get size of file
@@ -53,6 +55,7 @@ int sys_open(const_userptr_t filename, int flags,int *errptr) {
 			}
 			handle->offset = file_info.st_size;	//verify if st_size should be the offset
 		}
+		lock_release(handle->lock);
 	} 
 	else 
 	{	//too many files open

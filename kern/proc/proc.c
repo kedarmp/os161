@@ -146,19 +146,9 @@ proc_destroy(struct proc *proc)
 	 * incorrect to destroy it.)
 	 */
 
-	// close 0,1,2 if their rcount = 0
-	// int i=0;
-	// for(;i<3;i++) {
-	// 	struct fhandle *h = proc->ftable[i];
-	// 	if(h==NULL) continue;
-	// 	if(h->rcount ==0) {
-	// 		vfs_close(h->file);
-	// 		lock_destroy(h->lock);
-	// 		kfree(h);
-	// 		h = NULL;
-	// 		curproc->ftable[i] = NULL;
-	// 	}
-	// }
+
+
+	kprintf("[0]:%d\n",proc->ftable[0]->rcount);
 
 	/* VFS fields */
 	if (proc->p_cwd) {
@@ -262,11 +252,23 @@ proc_create_runprogram(const char *name)
 
 	int err=0;
 	newproc->ftable[0] = fhandle_create(console0, O_RDONLY,&err);	//stdin
-	if(err) return NULL;
+	if(err) {
+		return NULL;	
+	}else {
+		newproc->ftable[0]->rcount = 1;
+	}
 	newproc->ftable[1] = fhandle_create(console1, O_WRONLY,&err);	//stdout
-	if(err) return NULL;
+	if(err) {
+		return NULL;	
+	}else {
+		newproc->ftable[1]->rcount = 1;
+	}
 	newproc->ftable[2] = fhandle_create(console2, O_WRONLY,&err);	//stderr
-	if(err) return NULL;
+	if(err) {
+		return NULL;	
+	}else {
+		newproc->ftable[2]->rcount = 1;
+	}
 
 	/*
 	 * Lock the current process to copy its current directory.

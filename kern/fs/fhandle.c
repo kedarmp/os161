@@ -30,19 +30,26 @@ struct fhandle* fhandle_create(char *file_name, int open_mode,int *errptr) {
 }
 
 void fhandle_destroy(struct fhandle *h,int fd) {
+	struct proc * parent = get_proc(curproc->parent_proc_id);
+	struct fhandle * han = parent->ftable[fd];
+	kprintf("doihold: %d\n",lock_do_i_hold(han->lock));
 	lock_acquire(h->lock);
-	h->rcount--;
-	lock_release(h->lock);
-
+	if(h->rcount>=1)
+	{
+		h->rcount--;
+	}
 	if(h->rcount == 0) {
-		if(fd==0 || fd==1 || fd==2)
-		return;
 		vfs_close(h->file);
-		 lock_destroy(h->lock);
-		 kfree(h);
+		lock_release(h->lock);
+		lock_destroy(h->lock);
+		kfree(h);
 		h = NULL;
+		kprintf("destroyed:%d\n",fd);
 		curproc->ftable[fd] = NULL;
 	}
-	
+	else
+	{
+		lock_release(h->lock);
+	}
 }
 

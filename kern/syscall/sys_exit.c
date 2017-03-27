@@ -14,16 +14,20 @@ void sys_exit(int exitcode,int type) {	//type defines the encoding for the exitc
 	if(parent != NULL && parent->proc_id!=1)
 		V(parent->sem); 	//sem used to synch with waitpid()
 
+
 	//close all open files
 	//
 	//Trying to close all files actually fails the forktest.
 	//Probably because forktest correctly does close files
 	//
-	// int i, err;
-	// // kprintf("Proc:%d\n",curproc->proc_id);
-	// for(i=0;i<OPEN_MAX;i++){
-	// 	sys_close(i,&err);
-	// }
+	int i, err;
+	// kprintf("Proc:%d\n",curproc->proc_id);
+	for(i=0;i<OPEN_MAX;i++){
+		
+		
+		sys_close(i,&err);
+		
+	}
 	//ALl file handles are closed(and also destroyed). However the filetable array still is allocated
 	thread_exit();
 //	kprintf("\nShould not be called\n");
