@@ -34,9 +34,7 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 	}
 	kprintf("%d waitpiding on %d\n",curproc->proc_id,pid);
 	P(curproc->sem);
-	//We should NOT have pnumthreads=1 when after child exits. else we may have to busy wait?
-//cleanup wont be performed. thats the only drawback
-	kprintf("Child V'd.Child pnumthrads:%d\n",child->p_numthreads);
+	kprintf("waitpid-child exited\n");
 	//child called _exit
 	if(status != NULL) {    //collect exitcode. //See manpage for status!=null 
         	if(WIFEXITED(child->exit_code) || WIFSIGNALED(child->exit_code))
@@ -57,13 +55,14 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 	         }
 	}      
 	*errptr = 0;
-	if(child->p_numthreads == 0) 
-	{
+	if(child->p_numthreads == 0) {
 		proc_destroy(child);
-        recycle_pid(pid);
-    }
+	        recycle_pid(pid);
+	}
 	else {
-		kprintf("not destroying.numthreads for child:%d:(threads:%d)\n",child->proc_id,child->p_numthreads);
+	//We should NOT have pnumthreads=1 when after child exits. else we may have to busy wait?
+//cleanup wont be performed. thats the only drawback
+		kprintf("Will leak.Child V'd.Child pnumthreads:%d\n",child->p_numthreads);
 	}
 	return pid;
 }

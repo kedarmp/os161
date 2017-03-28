@@ -122,6 +122,7 @@ common_prog(int nargs, char **args)
 	int result;
 	unsigned tc;
 
+	kprintf("fork called\n");
 	/* Create a process for the new program to run in. */
 	proc = proc_create_runprogram(args[0] /* name */);
 	if (proc == NULL) {

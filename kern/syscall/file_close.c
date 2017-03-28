@@ -21,6 +21,9 @@ int sys_close(int fd,int *errptr) {
 		return -1;
 	}
 	 kprintf("sys_close:fd:%d\n",fd);
+	for(int d=4;d<10;d++)
+                kprintf("other adresses:%p\n",curproc->ftable[d]);
+
 	fhandle_destroy(f_handle_name,fd);
 	*errptr = 0;
 	return 0;

@@ -36,7 +36,9 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 	err = copyin((const_userptr_t)user_args,&temp,4);
                 if(err) {
                         *errptr = EFAULT;
-	
+			if(temp == NULL)
+				kprintf("WONT WORK!");
+				kfree(temp);	//need to kfree *(temp+i) for all i?
                         //kfree above stuff
                         return -1;
                 }
@@ -55,6 +57,7 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 		if(err) {
 			*errptr = EFAULT;
 			//kfree above stuff
+			
 			return -1;
 		}
 		ptr_len+=4;
@@ -172,7 +175,7 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 
 	//Old runprogram code starts here
 		
-	 struct addrspace *as;
+	 struct addrspace *new_as;
 	 struct vnode *v;
 	 vaddr_t entrypoint, stackptr;
 	 int result;
@@ -188,15 +191,15 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 	 //KASSERT(proc_getas() == NULL);
 
 	 /* Create a new address space. */
-	 as = as_create();
-	 if (as == NULL) {
+	 new_as = as_create();
+	 if (new_as == NULL) {
 	 	vfs_close(v);
 	 	*errptr = ENOMEM;
 	 	return -1;
 	 }
 
 	 /* Switch to it and activate it. */
-	 proc_setas(as);
+	 struct addrspace *old_as = proc_setas(new_as);
 	 as_activate();
 
 	 /* Load the executable. */
@@ -204,6 +207,11 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 	 if (result) {
 	 	/* p_addrspace will go away when curproc is destroyed */
 	 	vfs_close(v);
+		//destroy newly created addrspace
+		as_destroy(new_as);
+		//reset old addrspace
+		proc_setas(old_as);
+		as_activate();
 	 	*errptr = result;
 	 	return -1;
 	 }
@@ -212,12 +220,23 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 	 vfs_close(v);
 
 	 /* Define the user stack in the address space */
-	 result = as_define_stack(as, &stackptr);
+	 result = as_define_stack(new_as, &stackptr);
 	 if (result) {
 	 	/* p_addrspace will go away when curproc is destroyed */
+	
+		//destroy newly created addrspace
+		as_destroy(new_as);
+		//reset old addrspace
+		proc_setas(old_as);
+		as_activate();
 	 	*errptr = result;
 	 	return -1;
 	 }
+
+
+
+//TODO: 27 March: Dispose off the new address space if there are errors. And switch to the new addrspace very very late, when we're sure of its success OR switch back on error. This explains why typing random commands in the shell crashes the kernel
+
 
 
 	// int err;
@@ -246,7 +265,14 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 	void *maybe = (void*)ev_buff;
 	err = copyout((const void *)maybe,(userptr_t)(stackptr - full_size), full_size);
 	if (err) {
-	 	return err;
+	
+		//destroy newly created addrspace
+		as_destroy(new_as);
+		//reset old addrspace
+		proc_setas(old_as);
+		as_activate();
+	 	*errptr =  err;
+		return -1;
 	}
 	stackptr -= full_size;
 	//kprintf("stackptr after :%p \n",(void*)stackptr);
