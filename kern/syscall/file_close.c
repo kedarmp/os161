@@ -15,12 +15,12 @@ int sys_close(int fd,int *errptr) {
 	}
 
 	struct fhandle *f_handle_name = (curproc->ftable[fd]);	
-	if(f_handle_name == NULL)
+	if(f_handle_name == NULL || f_handle_name == (struct fhandle *)0xdeadbeef)
 	{
 		*errptr = EBADF;
 		return -1;
 	}
-	// kprintf("sys_close:fd:%d\n",fd);
+	 kprintf("sys_close:fd:%d\n",fd);
 	fhandle_destroy(f_handle_name,fd);
 	*errptr = 0;
 	return 0;

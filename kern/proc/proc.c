@@ -99,6 +99,11 @@ proc_create(const char *name)
 	add_proc(proc);
 	//initialize semaphore
 	proc->sem = sem_create("sem",0);
+	if(proc->sem == NULL) {	//cant proceed without a semaphore
+		recycle_pid(proc->proc_id);
+		kfree(proc);
+		return NULL;
+	}
 
 	return proc;
 }
@@ -129,6 +134,7 @@ struct proc * call_proc_create(const char *proc_name)
 void
 proc_destroy(struct proc *proc)
 {
+//	kprintf("Will destroy proc %d\n",proc->proc_id);
 	/*
 	 * You probably want to destroy and null out much of the
 	 * process (particularly the address space) at exit time if
@@ -148,7 +154,7 @@ proc_destroy(struct proc *proc)
 
 
 
-	kprintf("[0]:%d\n",proc->ftable[0]->rcount);
+	//kprintf("[0]:%d\n",proc->ftable[0]->rcount);
 
 	/* VFS fields */
 	if (proc->p_cwd) {
@@ -205,9 +211,17 @@ proc_destroy(struct proc *proc)
 	}
 
 	KASSERT(proc->p_numthreads == 0);
-
+/*	kprintf("proc destroy %d\n",proc->proc_id);
+	for(int i=0;i<OPEN_MAX;i++) {
+	struct fhandle * h = proc->ftable[i];
+	if(h!=NULL && h->rcount>0) {
+		kprintf("FD open:%d\n",i);
+	}
+		}
+*/
 	spinlock_cleanup(&proc->p_lock);
-	sem_destroy(proc->sem);
+	if(proc->sem!=NULL)
+		sem_destroy(proc->sem);
 	kfree(proc->p_name);
 	kfree(proc);
 }

@@ -29,27 +29,24 @@ struct fhandle* fhandle_create(char *file_name, int open_mode,int *errptr) {
 	return f;
 }
 
+//refactor this?
 void fhandle_destroy(struct fhandle *h,int fd) {
-	struct proc * parent = get_proc(curproc->parent_proc_id);
-	struct fhandle * han = parent->ftable[fd];
-	kprintf("doihold: %d\n",lock_do_i_hold(han->lock));
+/*	kprintf("Destroy fd:%d\n",fd);
+	kprintf("h:%p",h);
+	kprintf("do_i_hold: %d\n",lock_do_i_hold(h->lock));*/
 	lock_acquire(h->lock);
-	if(h->rcount>=1)
-	{
-		h->rcount--;
-	}
+//	kprintf("ACKed\n");
+	curproc->ftable[fd] = NULL;
+	h->rcount--;
 	if(h->rcount == 0) {
 		vfs_close(h->file);
 		lock_release(h->lock);
 		lock_destroy(h->lock);
 		kfree(h);
-		h = NULL;
-		kprintf("destroyed:%d\n",fd);
-		curproc->ftable[fd] = NULL;
+//		h = NULL;
+	//	kprintf("destroyed:%d\n",fd);
+		return;
 	}
-	else
-	{
-		lock_release(h->lock);
-	}
+	lock_release(h->lock);
 }
 

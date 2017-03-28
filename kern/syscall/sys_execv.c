@@ -9,7 +9,6 @@ char ev_buff[ARG_MAX];
 //NEW ATTEMPT
 int sys_execv(char* user_progname, char** user_args, int *errptr) {
 	
-	
 	bzero(ev_buff,ARG_MAX);
 	int i = 0, n_args = 0, err = 0;
 	
@@ -37,6 +36,7 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 	err = copyin((const_userptr_t)user_args,&temp,4);
                 if(err) {
                         *errptr = EFAULT;
+	
                         //kfree above stuff
                         return -1;
                 }
@@ -167,7 +167,7 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 		*errptr = EINVAL;
 		return -1;
 	}
-	// kprintf("Programe name:%s\n",progname);	
+	 kprintf("curproc %d called execv: Programe name:%s\n",curproc->proc_id,progname);	
 	//at this point, 'n_args' arguments have been copied correctly(via copyin*) into args[]
 
 	//Old runprogram code starts here

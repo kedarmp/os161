@@ -75,22 +75,24 @@ pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *err
 	{
 		if(parent_proc -> ftable[i]!= NULL) {
 		struct fhandle *parent_handle = parent_proc->ftable[i];
-		//lock_acquire(parent_handle->lock);
+		lock_acquire(parent_handle->lock);
 		
 			//increase reference counts of all file handles in parent before copying them to child(also use locks someplace)
-			kprintf("i=%d..old counts:%d\n",i,parent_handle->rcount);
+			//kprintf("i=%d..old counts:%d\n",i,parent_handle->rcount);
 			parent_handle -> rcount += 1;
 			child -> ftable[i] = parent_handle;
-			//lock_release(parent_handle->lock);
+		lock_release(parent_handle->lock);
 		}
 		
 	}
 
 	err = thread_fork("Userthread", child, enter_forked_process, child_tf, 0);
 	if(err) {
-		kprintf("Not cleared!");
+//		kprintf("pending!");
 		kfree(child_tf);
+	//	kprintf("**\n");
 		proc_destroy(child);
+	//	kprintf("++\n");
 		recycle_pid(child_id);
 		*errptr =err;
 		return -1;

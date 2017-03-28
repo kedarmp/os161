@@ -23,7 +23,7 @@ int sys_open(const_userptr_t filename, int flags,int *errptr) {
 		return -1;	//or EFAULT?
 	}
 	// kprintf("sys_open:fd:%s\n",buffer);
-	//kprintf("Opening file:%s",buffer);
+	kprintf("Opening file:%s",buffer);
 	//check if there is space in our file table to open another file
 	int count = 0;
 	for(;count<__OPEN_MAX && curproc->ftable[count]!=NULL;count++)
@@ -41,7 +41,6 @@ int sys_open(const_userptr_t filename, int flags,int *errptr) {
 		lock_acquire(handle->lock);
 		curproc->ftable[count] = handle;
 		handle->rcount = 1;
-		kprintf("open:set to %d\n",handle->rcount);
 		handle->open_mode = flags;
 		if(flags == (O_WRONLY|O_APPEND) || flags == (O_RDWR|O_APPEND)) {
 			//get size of file
