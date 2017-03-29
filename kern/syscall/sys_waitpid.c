@@ -35,6 +35,7 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 	kprintf("%d waitpiding on %d\n",curproc->proc_id,pid);
 	P(curproc->sem);
 	kprintf("waitpid-child exited\n");
+//	while(child->p_numthreads!=0);//keep waiting
 	//child called _exit
 	if(status != NULL) {    //collect exitcode. //See manpage for status!=null 
         	if(WIFEXITED(child->exit_code) || WIFSIGNALED(child->exit_code))
