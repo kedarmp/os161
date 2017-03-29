@@ -32,10 +32,9 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 		*errptr = ECHILD;
 		return -1;
 	}
-	kprintf("%d waitpiding on %d\n",curproc->proc_id,pid);
-	P(curproc->sem);
-	kprintf("waitpid-child exited\n");
-//	while(child->p_numthreads!=0);//keep waiting
+
+	lock_acquire(curproc->proc_lock);
+	P(child->sem);
 	//child called _exit
 	if(status != NULL) {    //collect exitcode. //See manpage for status!=null 
         	if(WIFEXITED(child->exit_code) || WIFSIGNALED(child->exit_code))
@@ -51,6 +50,8 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 	                        if(child->p_numthreads == 0) {
 								proc_destroy(child);
 							}
+
+				lock_release(curproc->proc_lock);
 	                        return -1;
 	                        }
 	         }
@@ -65,5 +66,6 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 //cleanup wont be performed. thats the only drawback
 		kprintf("Will leak.Child V'd.Child pnumthreads:%d\n",child->p_numthreads);
 	}
+	lock_release(curproc->proc_lock);
 	return pid;
 }

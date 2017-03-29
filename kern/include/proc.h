@@ -86,6 +86,7 @@ struct proc {
 	int exit_code;
 	//sem for waitpid/exit
 	struct semaphore *sem;
+	struct lock *proc_lock;
 
 };
 

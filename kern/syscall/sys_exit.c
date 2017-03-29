@@ -11,28 +11,13 @@ void sys_exit(int exitcode,int type) {	//type defines the encoding for the exitc
 	else if(type == TYPE_RECEIVED_SIG)
 		curproc->exit_code = _MKWAIT_SIG(exitcode);
 
-/*	kprintf("Dumping proctable:\n");
-	int j=0;
-	for(j=0;j<3;j++) {
-		struct proc * p = get_proc(j);
-		if(p!=NULL) {
-			kprintf("%d:%s\n",j,p->p_name);
-		}
-	}*/
-//	struct proc * parent=NULL;
-	if(curproc->parent_proc_id !=0 ) {
-//	parent = get_proc(curproc->parent_proc_id);
-	 kprintf("EXIT:%d.Numthreads:%d\n",curproc->proc_id,curproc->p_numthreads);
-	}
 
 	//close files for everybody regardless of PID
 	int i, err;
 	for(i=0;i<OPEN_MAX;i++){
 		sys_close(i,&err);
 	}	
-/*	if(parent != NULL)
-		V(parent->sem); 	//sem used to synch with waitpid()*/
 
-	thread_exit();
+	thread_exit();	//V is done in proc_remthread in proc.c which is called by thread_exit
 	kprintf("\nShould not be called\n");
 }

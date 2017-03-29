@@ -44,7 +44,6 @@ void fhandle_destroy(struct fhandle *h,int fd) {
 		lock_destroy(h->lock);
 		kfree(h);
 //		h = NULL;
-	//	kprintf("destroyed:%d\n",fd);
 		return;
 	}
 	lock_release(h->lock);

@@ -23,12 +23,10 @@ int sys_open(const_userptr_t filename, int flags,int *errptr) {
 		return -1;	//or EFAULT?
 	}
 	// kprintf("sys_open:fd:%s\n",buffer);
-	kprintf("Opening file:%s",buffer);
 	//check if there is space in our file table to open another file
 	int count = 3;
-	for(;count<__OPEN_MAX && curproc->ftable[count]!=NULL /*&& curproc->ftable[count]!=(struct fhandle *)0xdeadbeef*/;count++)
+	for(;count<__OPEN_MAX && curproc->ftable[count]!=NULL && curproc->ftable[count]!=(struct fhandle *)0xdeadbeef;count++)
 	;	//linear search
-	kprintf("Found slot:%d\n",count);
 	if(count<__OPEN_MAX) {
 		//create a new file handle
 		//see what happens if a process tries to reopen the same file. Does this fail? If it does, then we're good to go else we need manual checking of some sort
@@ -39,7 +37,6 @@ int sys_open(const_userptr_t filename, int flags,int *errptr) {
 				return -1; 
 			}
 		}
-		kprintf("Opened file at index:%d\n",count);
 		lock_acquire(handle->lock);
 		curproc->ftable[count] = handle;
 		handle->rcount = 1;
@@ -61,12 +58,10 @@ int sys_open(const_userptr_t filename, int flags,int *errptr) {
 	else 
 	{	//too many files open
 		// fhandle_destroy(handle,count);
-		kprintf("emfile.count:%d\n",count);
 		*errptr = EMFILE;
 		return -1;
 	}
 	//Success throughout , therefore reset the errptr
-	kprintf("opened file OK\n");
 	*errptr = 0;
 	return count;
 }

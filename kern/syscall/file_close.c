@@ -15,15 +15,14 @@ int sys_close(int fd,int *errptr) {
 	}
 
 	struct fhandle *f_handle_name = (curproc->ftable[fd]);	
-	if(f_handle_name == NULL || f_handle_name == (struct fhandle *)0xdeadbeef)
+	if(f_handle_name == NULL  || f_handle_name == (struct fhandle *)0xdeadbeef)
 	{
 		*errptr = EBADF;
 		return -1;
 	}
-	 kprintf("sys_close:fd:%d\n",fd);
-	for(int d=4;d<10;d++)
+	/*for(int d=4;d<6;d++)
                 kprintf("other adresses:%p\n",curproc->ftable[d]);
-
+*/
 	fhandle_destroy(f_handle_name,fd);
 	*errptr = 0;
 	return 0;

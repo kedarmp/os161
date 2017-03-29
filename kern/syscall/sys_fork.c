@@ -38,6 +38,7 @@ pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *err
 		return -1;
 	}
 	
+//	kprintf("Forking..\n");
 	//copy stuff from parent
 	child -> proc_id = child_id;
 	child -> parent_proc_id = parent_proc -> proc_id;
@@ -67,13 +68,13 @@ pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *err
 		return -1;
 	}
 	memcpy(child_tf, old_trapframe, sizeof(struct trapframe));
-
+//TODO Do we need an as_destroy somewhere here?
 
 	//Running through the parent ftable and getting the number of open FDs
 	int i;
 	for(i = 0;i<OPEN_MAX;i++)
 	{
-		if(parent_proc -> ftable[i]!= NULL) {
+		if(parent_proc -> ftable[i]!= NULL && parent_proc ->ftable[i]!=(struct fhandle*)0xdeadbeef) {
 		struct fhandle *parent_handle = parent_proc->ftable[i];
 		lock_acquire(parent_handle->lock);
 		

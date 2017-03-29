@@ -4,11 +4,9 @@
 #include <kern/errno.h>
 
 char ev_buff[ARG_MAX];
-//int load_kernel_buffer(int n_args, userptr_t *argv_address,vaddr_t stack,int full_size);
 
-//NEW ATTEMPT
 int sys_execv(char* user_progname, char** user_args, int *errptr) {
-	
+		
 	bzero(ev_buff,ARG_MAX);
 	int i = 0, n_args = 0, err = 0;
 	
@@ -38,18 +36,11 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
                         *errptr = EFAULT;
 			if(temp == NULL)
 				kprintf("WONT WORK!");
-				kfree(temp);	//need to kfree *(temp+i) for all i?
+				kfree(temp);//TODO	//need to kfree *(temp+i) for all i?
                         //kfree above stuff
                         return -1;
                 }
 
-/*	kprintf("user_args:%p",user_args);
-	if(user_args == (char**) 0x40000000) {
-		*errptr = EFAULT;
-		return -1;
-
-	}
-*/	
 
 	//copy pointers
 	while(user_args[i]!=NULL) {
@@ -143,22 +134,6 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 		 //kprintf("Pointer %d points to %p:\n",i,ptrs[i]);
 		// kprintf("Address of ith arg:%p\n",ptrs[i]);
 	}
-	// for(i=0;i<full_size;i++) {
-	// 	if(ev_buff[i]=='\0')
-	// 		//kprintf("@");
-	// 	//kprintf("%c",ev_buff[i]);
-	// }
-
-	// kprintf("\n");
-
-	// for(i=0;i<n_args;i++)
-	// {
-	// 	kprintf("ptr value : %s \n",(char *)ptr[i]);
-	// }
-	
-	//old	
-
-	// kprintf("FINAL LENGTH:%d\n",args_len);
 	err = copyinstr((const_userptr_t)user_progname, progname, PATH_MAX, &got);
 	if(err!=0) 
 	{

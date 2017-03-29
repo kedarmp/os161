@@ -94,6 +94,11 @@ proc_create(const char *name)
 		kfree(proc);
 		return NULL;
 	}
+	proc->proc_lock = lock_create("perproclock");
+	if(proc->proc_lock == NULL) {
+		kfree(proc);
+		return NULL;
+	}
 
 	//add process to process table
 	add_proc(proc);
@@ -211,17 +216,12 @@ proc_destroy(struct proc *proc)
 	}
 
 	KASSERT(proc->p_numthreads == 0);
-/*	kprintf("proc destroy %d\n",proc->proc_id);
-	for(int i=0;i<OPEN_MAX;i++) {
-	struct fhandle * h = proc->ftable[i];
-	if(h!=NULL && h->rcount>0) {
-		kprintf("FD open:%d\n",i);
-	}
-		}
-*/
+
 	spinlock_cleanup(&proc->p_lock);
 	if(proc->sem!=NULL)
 		sem_destroy(proc->sem);
+	if(proc->proc_lock!=NULL)
+		lock_destroy(proc->proc_lock);
 	kfree(proc->p_name);
 	kfree(proc);
 }
@@ -261,11 +261,11 @@ proc_create_runprogram(const char *name)
 
 	/* VFS fields */
 	//explicitly set ftable to nulls
-	bzero(newproc->ftable,4*OPEN_MAX);	//sizeof ptr = 4
+	//bzero(newproc->ftable,4*OPEN_MAX);	//sizeof ptr = 4
 	//neither of these work
-/*	for(int i=0;i<OPEN_MAX;i++) {
+	for(int i=0;i<OPEN_MAX;i++) {
 		newproc->ftable[i] = NULL;
-	}*/
+	}//<-- despite this we have deadbeefs instead of NULLS in ftables. Thats why we've checked for them in a lot of places
 	char console0[5] = "con:";
 	char console1[5] = "con:";
 	char console2[5] = "con:";
@@ -354,15 +354,15 @@ proc_remthread(struct thread *t)
 	spinlock_acquire(&proc->p_lock);
 	KASSERT(proc->p_numthreads > 0);
 	proc->p_numthreads--;
-	kprintf("reduced numthreads for thread %d to %d\n",proc->proc_id,proc->p_numthreads);
+	//kprintf("reduced numthreads for thread %d to %d\n",proc->proc_id,proc->p_numthreads);
 	spinlock_release(&proc->p_lock);
 
 	//synchronize with waitpid. We are supposed to do this in sys_exit. But until numthreads becomes zero, the proc_destroy function in waitpid will not destroy the process. Thus, leaking mem.
-        if(proc->parent_proc_id !=0 ) {
-		struct proc * parent=NULL;
-	        parent = get_proc(proc->parent_proc_id);
-		V(parent->sem);
-	}
+       // if(proc->parent_proc_id !=0 ) {
+//		struct proc * parent=NULL;
+//	        parent = get_proc(proc->parent_proc_id);
+		V(proc->sem);
+//	}
 	spl = splhigh();
 	t->t_proc = NULL;
 	splx(spl);
