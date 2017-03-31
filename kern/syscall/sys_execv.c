@@ -6,7 +6,6 @@
 char ev_buff[ARG_MAX];
 
 int sys_execv(char* user_progname, char** user_args, int *errptr) {
-		
 	bzero(ev_buff,ARG_MAX);
 	int i = 0, n_args = 0, err = 0;
 	
@@ -36,7 +35,7 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
                         *errptr = EFAULT;
 			if(temp == NULL)
 				kprintf("WONT WORK!");
-				kfree(temp);//TODO	//need to kfree *(temp+i) for all i?
+				kfree(temp); //TODO	//need to kfree *(temp+i) for all i?
                         //kfree above stuff
                         return -1;
                 }

@@ -16,7 +16,7 @@ extern void *memcpy(void *dest, const void *src, size_t len);
 pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *errptr)
 {
 	//Check if kernel thread isnt calling fork.22880
-	//kprintf("parents name:%s\n",parent_proc->p_name);
+	kprintf("parents name:%s\n",parent_proc->p_name);
 	if(parent_proc -> proc_id < 2)
 	{
 		*errptr = EINVAL;
@@ -79,26 +79,28 @@ pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *err
 		lock_acquire(parent_handle->lock);
 		
 			//increase reference counts of all file handles in parent before copying them to child(also use locks someplace)
-			//kprintf("i=%d..old counts:%d\n",i,parent_handle->rcount);
 			parent_handle -> rcount += 1;
 			child -> ftable[i] = parent_handle;
+			kprintf("i=%d..new counts:%d\n",i,parent_handle->rcount);
 		lock_release(parent_handle->lock);
 		}
 		
 	}
-
 	err = thread_fork("Userthread", child, enter_forked_process, child_tf, 0);
 	if(err) {
-//		kprintf("pending!");
+		kprintf("fork failed!");
+		//Reduce shared filehandle ref counts(i.e. simply call close). Corner case when thread_fork itself fails. Won't be called regularly
+		for(i = 0; i<OPEN_MAX;i++) {
+			sys_close(i,&err);
+		}
 		kfree(child_tf);
-	//	kprintf("**\n");
 		proc_destroy(child);
-	//	kprintf("++\n");
 		recycle_pid(child_id);
 		*errptr =err;
 		return -1;
 	}
-
+	
+	kprintf("forking done\n");
 
 
 	*errptr =0;

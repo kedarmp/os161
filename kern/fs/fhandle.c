@@ -38,7 +38,9 @@ void fhandle_destroy(struct fhandle *h,int fd) {
 //	kprintf("ACKed\n");
 	curproc->ftable[fd] = NULL;
 	h->rcount--;
+	kprintf("fhandle-destroy fd:%d.Count:%d\n",fd,h->rcount);
 	if(h->rcount == 0) {
+		kprintf("destroying fd:%d\n",fd);
 		vfs_close(h->file);
 		lock_release(h->lock);
 		lock_destroy(h->lock);

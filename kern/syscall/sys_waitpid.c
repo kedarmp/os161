@@ -28,7 +28,11 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 	}
 
 
-	if(curproc->proc_id != child->parent_proc_id)
+	//make an exception for when curproc is [kernel] thread. Allows us to cleanup the first user process launched from menu.c, because cmd_common_prog stuff from menu.c
+//does not make the kernel process the parent of the first user process(whose pid=2). In that sense,
+//the first user process(e.g. 's'[hell] or 'p' are the real 'init' processes!)
+//Maybe change the model later. Right now we dont care
+	if(curproc->proc_id!=1 && curproc->proc_id != child->parent_proc_id)
 	{
 		*errptr = ECHILD;
 		return -1;
