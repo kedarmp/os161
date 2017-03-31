@@ -6,10 +6,11 @@
 #include <kern/wait.h>
 #include <proc_table.h>
 #include <sys_waitpid.h>
+#include <proc_table.h>
 
 pid_t
 sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
-
+	kprintf("waitpid(%d) called\n",pid);
 	if(options !=0)
 	{
 		*errptr = EINVAL;
@@ -47,9 +48,10 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 	                        *errptr = EFAULT;
 	                        recycle_pid(pid);//in any case, recycle the pid of the child, since its exited
 	                        //even if copying out failed(e.g. because of bad ptr, do we still have to cleanup the child)? 7792
-	                        if(child->p_numthreads == 0) {
-								proc_destroy(child);
-							}
+	                        if(child->p_numthreads == 0) 
+				{
+					proc_destroy(child);
+				}
 
 				lock_release(curproc->proc_lock);
 	                        return -1;

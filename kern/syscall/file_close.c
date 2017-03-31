@@ -20,9 +20,10 @@ int sys_close(int fd,int *errptr) {
 		*errptr = EBADF;
 		return -1;
 	}
-	/*for(int d=4;d<6;d++)
+	for(int d=4;d<6;d++)
                 kprintf("other adresses:%p\n",curproc->ftable[d]);
-*/
+
+	kprintf("sys_close(%d)\n",fd);
 	fhandle_destroy(f_handle_name,fd);
 	*errptr = 0;
 	return 0;

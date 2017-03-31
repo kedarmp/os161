@@ -139,7 +139,7 @@ struct proc * call_proc_create(const char *proc_name)
 void
 proc_destroy(struct proc *proc)
 {
-//	kprintf("Will destroy proc %d\n",proc->proc_id);
+	kprintf("Will destroy proc %d\n",proc->proc_id);
 	/*
 	 * You probably want to destroy and null out much of the
 	 * process (particularly the address space) at exit time if

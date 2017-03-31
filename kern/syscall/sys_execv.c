@@ -261,6 +261,7 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 
 	// kprintf("argv_start:%p\n",argv_start);
 
+	as_destroy(old_as);
 	 /* Warp to user mode. */
 	 enter_new_process(n_args, (userptr_t)stackptr,
 	 		  NULL /*userspace addr of environment*/,
