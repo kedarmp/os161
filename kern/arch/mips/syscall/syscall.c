@@ -228,6 +228,7 @@ syscall(struct trapframe *tf)
  */
 void enter_forked_process(void *tf, unsigned long child_return) {//struct trapframe *tf
 	struct trapframe t = *((struct trapframe*)tf);
+	kfree(tf);
 	t.tf_a3 = 0; //no error
 	t.tf_v0 = child_return;	//child return value(0 returned to child; pid of child returned to parent)
 	//increment Iinstruction pointer by 

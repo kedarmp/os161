@@ -10,7 +10,6 @@
 
 pid_t
 sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
-	kprintf("waitpid(%d) called\n",pid);
 	if(options !=0)
 	{
 		*errptr = EINVAL;

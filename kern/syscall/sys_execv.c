@@ -34,7 +34,6 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
                 if(err) {
                         *errptr = EFAULT;
 			if(temp == NULL)
-				kprintf("WONT WORK!");
 				kfree(temp); //TODO	//need to kfree *(temp+i) for all i?
                         //kfree above stuff
                         return -1;
@@ -144,7 +143,6 @@ int sys_execv(char* user_progname, char** user_args, int *errptr) {
 		*errptr = EINVAL;
 		return -1;
 	}
-	 kprintf("curproc %d called execv: Programe name:%s\n",curproc->proc_id,progname);	
 	//at this point, 'n_args' arguments have been copied correctly(via copyin*) into args[]
 
 	//Old runprogram code starts here

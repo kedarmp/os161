@@ -6,7 +6,6 @@
 #include <limits.h>
 
 void sys_exit(int exitcode,int type) {	//type defines the encoding for the exitcode
-	kprintf("%d exiting\n",curproc->proc_id);
 	if(type == TYPE_EXITED)	
 		curproc->exit_code = _MKWAIT_EXIT(exitcode);
 	else if(type == TYPE_RECEIVED_SIG)
