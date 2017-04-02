@@ -19,7 +19,7 @@ off_t sys_lseek(int fd, uint32_t high, uint32_t low, int *whence, int *errptr) {
 
 	//Obtaining file handler
 	struct fhandle *f_handle_name = (curproc->ftable[fd]);	
-	if(f_handle_name == NULL)
+	if(f_handle_name == NULL || f_handle_name == (struct fhandle*)0xdeadbeef)
 	{
 		*errptr = EBADF;
 		return -1;

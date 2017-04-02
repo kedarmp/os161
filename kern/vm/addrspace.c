@@ -40,6 +40,135 @@
  * used. The cheesy hack versions in dumbvm.c are used instead.
  */
 
+paddr_t coremap;
+paddr_t first_free;
+int used_bytes;
+
+void vm_bootstrap(void) {
+
+}
+
+/* Fault handling function called by trap code */
+
+void init_coremap() {
+	int i=0;
+	coremap = ram_getfirstfree();
+	int ram_size = ram_getsize() - 0x0;
+	//setup structs of core_entry and store them to RAM
+	int total_pages = ram_size/PAGE_SIZE;
+	first_free = coremap + npages * sizeof(struct core_entry);
+
+	paddr_t traverse = coremap;
+	//set up first few entries in coremap as fixed (these correspond to the initial kernel entries already present)
+	int existing_pages_used = (coremap - 0x0)/PAGE_SIZE;
+	for(i=0;i<existing_pages_used;i++) {
+		struct core_entry e;
+		e.state = PAGE_FIXED;
+		e.chunk_size = 0;
+		//put struct in physical mem
+		*traverse = e;
+		traverse += sizeof(struct core_entry);
+	}
+
+
+	//setup rest of pages
+	for(;i<total_pages; i++) {
+		struct core_entry e;
+		e.state = PAGE_FREE;
+		e.chunk_size = 0;
+		//put struct in physical mem
+		*traverse = e;
+		traverse += sizeof(struct core_entry);
+	}
+	used_bytes = first_free - 0x0; //assume that we include existing kernel pages + coremap size also as "used"
+}
+
+int vm_fault(int faulttype, vaddr_t faultaddress) {
+(void)faulttype;
+(void)faultaddress;
+return 0;
+}
+
+/* Allocate/free kernel heap pages (called by kmalloc/kfree) */
+vaddr_t alloc_kpages(unsigned npages) {
+		paddr_t traverse_end = coremap;
+		paddr_t marker = traverse_end;
+		struct core_entry e = *traverse_end;
+		int found = 0;
+		while(traverse_end<first_free) {
+			if(e.state == PAGE_FREE) {
+				
+				found++;
+				if(found == npages) {
+					break;
+				}
+			}
+			else {
+				if(found!=npages) {
+					found = 0;
+				}
+			}
+			traverse_end += sizeof(core_entry);
+			e = *traverse_end;
+			if(found==0) {	//we will start fresh. Marker should always point to the first struct of our desired "contiguous segment"
+				marker = traverse_end;
+			}
+		}
+		if(found == npages) {	//found "npages" free pages starting at traverse
+			//paddr_t ret_address = traverse_end - (npages*sizeof(struct core_entry));
+
+			//the segment from marker upto npages ahead should now be marked as fixed
+			e = *marker;
+			e.state = PAGE_FIXED;
+			e.chunk_size = npages;
+			for(int i=0; i<npages; i++) {
+				e = *(marker + i*sizeof(struct core_entry));
+				e.state = PAGE_FIXED;
+				e.chunk_size = 0;
+			}
+			used_bytes += npages*PAGE_SIZE;
+			return PADDR_TO_KVADDR(marker);
+		}
+		
+	
+	return NULL;
+
+}
+void free_kpages(vaddr_t addr) {
+(void) addr;
+}
+
+/*
+ * Return amount of memory (in bytes) used by allocated coremap pages.  If
+ * there are ongoing allocations, this value could change after it is returned
+ * to the caller. But it should have been correct at some point in time.
+ */
+unsigned int coremap_used_bytes(void) {
+	return used_bytes;
+}
+
+/* TLB shootdown handling called from interprocessor_interrupt */
+void vm_tlbshootdown(const struct tlbshootdown *) {
+	(void)tlbshootdown;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ //----------------------//
+
 struct addrspace *
 as_create(void)
 {
@@ -179,4 +308,5 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 
 	return 0;
 }
+
 

@@ -38,7 +38,18 @@
 #include <vm.h>
 #include "opt-dumbvm.h"
 
+#define PAGE_FIXED 1
+#define PAGE_FREE 2
+
 struct vnode;
+
+struct core_entry {
+  int state;
+  int chunk_size;
+};
+
+extern paddr_t coremap;
+extern paddr_t first_free;
 
 
 /*
@@ -61,6 +72,27 @@ struct addrspace {
         /* Put stuff here for your VM system */
 #endif
 };
+
+
+
+void vm_bootstrap(void);
+
+/* Fault handling function called by trap code */
+int vm_fault(int faulttype, vaddr_t faultaddress);
+
+/* Allocate/free kernel heap pages (called by kmalloc/kfree) */
+vaddr_t alloc_kpages(unsigned npages);
+void free_kpages(vaddr_t addr);
+
+/*
+ * Return amount of memory (in bytes) used by allocated coremap pages.  If
+ * there are ongoing allocations, this value could change after it is returned
+ * to the caller. But it should have been correct at some point in time.
+ */
+unsigned int coremap_used_bytes(void);
+
+/* TLB shootdown handling called from interprocessor_interrupt */
+void vm_tlbshootdown(const struct tlbshootdown *);
 
 /*
  * Functions in addrspace.c:
