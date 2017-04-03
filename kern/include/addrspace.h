@@ -29,7 +29,8 @@
 
 #ifndef _ADDRSPACE_H_
 #define _ADDRSPACE_H_
-
+#define PAGE_FIXED 1
+#define PAGE_FREE 2
 /*
  * Address space structure and operations.
  */
@@ -38,18 +39,18 @@
 #include <vm.h>
 #include "opt-dumbvm.h"
 
-#define PAGE_FIXED 1
-#define PAGE_FREE 2
-
 struct vnode;
 
 struct core_entry {
-  int state;
+  unsigned int state;
   int chunk_size;
 };
 
-extern paddr_t coremap;
-extern paddr_t first_free;
+extern struct core_entry * coremap;
+extern unsigned int used_bytes;
+extern int total_pages;
+//extern paddr_t first_free;
+
 
 
 /*

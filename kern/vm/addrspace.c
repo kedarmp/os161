@@ -34,55 +34,25 @@
 #include <vm.h>
 #include <proc.h>
 
+
+extern vaddr_t firstfree;
+
 /*
  * Note! If OPT_DUMBVM is set, as is the case until you start the VM
  * assignment, this file is not compiled or linked or in any way
  * used. The cheesy hack versions in dumbvm.c are used instead.
  */
 
-paddr_t coremap;
-paddr_t first_free;
-int used_bytes;
+struct core_entry* coremap;
+//paddr_t first_free;
+unsigned int used_bytes;
+int total_pages;
 
 void vm_bootstrap(void) {
 
 }
 
 /* Fault handling function called by trap code */
-
-void init_coremap() {
-	int i=0;
-	coremap = ram_getfirstfree();
-	int ram_size = ram_getsize() - 0x0;
-	//setup structs of core_entry and store them to RAM
-	int total_pages = ram_size/PAGE_SIZE;
-	first_free = coremap + npages * sizeof(struct core_entry);
-
-	paddr_t traverse = coremap;
-	//set up first few entries in coremap as fixed (these correspond to the initial kernel entries already present)
-	int existing_pages_used = (coremap - 0x0)/PAGE_SIZE;
-	for(i=0;i<existing_pages_used;i++) {
-		struct core_entry e;
-		e.state = PAGE_FIXED;
-		e.chunk_size = 0;
-		//put struct in physical mem
-		*traverse = e;
-		traverse += sizeof(struct core_entry);
-	}
-
-
-	//setup rest of pages
-	for(;i<total_pages; i++) {
-		struct core_entry e;
-		e.state = PAGE_FREE;
-		e.chunk_size = 0;
-		//put struct in physical mem
-		*traverse = e;
-		traverse += sizeof(struct core_entry);
-	}
-	used_bytes = first_free - 0x0; //assume that we include existing kernel pages + coremap size also as "used"
-}
-
 int vm_fault(int faulttype, vaddr_t faultaddress) {
 (void)faulttype;
 (void)faultaddress;
@@ -91,11 +61,17 @@ return 0;
 
 /* Allocate/free kernel heap pages (called by kmalloc/kfree) */
 vaddr_t alloc_kpages(unsigned npages) {
-		paddr_t traverse_end = coremap;
-		paddr_t marker = traverse_end;
+		
+		struct core_entry* traverse_end = coremap;
+		struct core_entry* marker = traverse_end;
+		
 		struct core_entry e = *traverse_end;
-		int found = 0;
-		while(traverse_end<first_free) {
+		
+		unsigned found = 0;
+		vaddr_t freepage = firstfree;
+
+		for(int i=0; i<total_pages; i++) {
+			e = traverse_end[i];
 			if(e.state == PAGE_FREE) {
 				
 				found++;
@@ -108,30 +84,30 @@ vaddr_t alloc_kpages(unsigned npages) {
 					found = 0;
 				}
 			}
-			traverse_end += sizeof(core_entry);
-			e = *traverse_end;
+			
 			if(found==0) {	//we will start fresh. Marker should always point to the first struct of our desired "contiguous segment"
-				marker = traverse_end;
+				marker = traverse_end+i;
+			 	freepage = firstfree + PAGE_SIZE*(i+1); //update physical address too
 			}
 		}
 		if(found == npages) {	//found "npages" free pages starting at traverse
 			//paddr_t ret_address = traverse_end - (npages*sizeof(struct core_entry));
 
 			//the segment from marker upto npages ahead should now be marked as fixed
-			e = *marker;
-			e.state = PAGE_FIXED;
-			e.chunk_size = npages;
-			for(int i=0; i<npages; i++) {
-				e = *(marker + i*sizeof(struct core_entry));
-				e.state = PAGE_FIXED;
-				e.chunk_size = 0;
+			
+			for(unsigned j=0; j<npages; j++) {
+				marker[j].state = PAGE_FIXED;
+				if(j==0)
+					marker[j].chunk_size = npages;	//else its zero
 			}
 			used_bytes += npages*PAGE_SIZE;
-			return PADDR_TO_KVADDR(marker);
+			//return a physical address vaddr corresponding to "marker"
+
+			return freepage;
 		}
 		
-	
-	return NULL;
+
+	return (vaddr_t)NULL;
 
 }
 void free_kpages(vaddr_t addr) {
@@ -148,8 +124,8 @@ unsigned int coremap_used_bytes(void) {
 }
 
 /* TLB shootdown handling called from interprocessor_interrupt */
-void vm_tlbshootdown(const struct tlbshootdown *) {
-	(void)tlbshootdown;
+void vm_tlbshootdown(const struct tlbshootdown * t) {
+	(void)t;
 }
 
 

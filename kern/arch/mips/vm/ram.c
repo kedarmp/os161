@@ -31,6 +31,7 @@
 #include <lib.h>
 #include <vm.h>
 #include <mainbus.h>
+#include <addrspace.h>
 
 
 vaddr_t firstfree;   /* first free virtual address; set by start.S */
@@ -68,6 +69,42 @@ ram_bootstrap(void)
 	 * Convert to physical address.
 	 */
 	firstpaddr = firstfree - MIPS_KSEG0;
+
+	//init coremap
+	coremap = (struct core_entry*)firstfree;
+	//setup structs of core_entry and store them to RAM
+	total_pages = ramsize/PAGE_SIZE;
+	firstfree = (vaddr_t)(coremap + total_pages);
+
+	struct core_entry* traverse = coremap;
+	//set up first few entries in coremap as fixed (these correspond to the initial kernel entries already present)
+	int existing_pages_used = (unsigned int)(((struct core_entry*)firstpaddr - (struct core_entry*)0x0)/PAGE_SIZE);
+	int i = 0;
+	for(;i<existing_pages_used;i++) {
+
+		struct core_entry e;
+		e.state = PAGE_FIXED;
+		if(i == 0)
+		{
+			e.chunk_size = existing_pages_used;	
+		}
+		else
+		{
+			e.chunk_size = 0;	
+		}
+		traverse[i] = e;
+	}
+	kprintf("%d \n",i);
+	//setup rest of pages
+	for(;i<total_pages; i++) {
+		struct core_entry e;
+		e.state = PAGE_FREE;
+		e.chunk_size = 0;
+		//put struct in physical mem
+		traverse[i] = e;
+		//traverse++;
+	}
+	used_bytes = (unsigned int)(firstfree - (vaddr_t)0x0); //assume that we include existing kernel pages + coremap size also as "used"
 
 	kprintf("%uk physical memory available\n",
 		(lastpaddr-firstpaddr)/1024);
