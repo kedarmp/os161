@@ -65,12 +65,13 @@ vaddr_t alloc_kpages(unsigned npages) {
 		struct core_entry* traverse_end = coremap;
 		struct core_entry* marker = traverse_end;
 		
-		struct core_entry e = *traverse_end;
+		struct core_entry e;
 		
 		unsigned found = 0;
 		vaddr_t freepage = firstfree;
 
-		for(int i=0; i<total_pages; i++) {
+		int i;
+		for( i=0; i<total_pages; i++) {
 			e = traverse_end[i];
 			if(e.state == PAGE_FREE) {
 				
@@ -86,10 +87,12 @@ vaddr_t alloc_kpages(unsigned npages) {
 			}
 			
 			if(found==0) {	//we will start fresh. Marker should always point to the first struct of our desired "contiguous segment"
-				marker = traverse_end+i;
-			 	freepage = firstfree + PAGE_SIZE*(i+1); //update physical address too
+				marker = traverse_end+i+1;
+			 	freepage = MIPS_KSEG0 + PAGE_SIZE*(i+1); //update physical address too
 			}
 		}
+		if(i==total_pages)
+			return (vaddr_t)NULL;
 		if(found == npages) {	//found "npages" free pages starting at traverse
 			//paddr_t ret_address = traverse_end - (npages*sizeof(struct core_entry));
 
@@ -102,16 +105,29 @@ vaddr_t alloc_kpages(unsigned npages) {
 			}
 			used_bytes += npages*PAGE_SIZE;
 			//return a physical address vaddr corresponding to "marker"
-
+			kprintf("Allocating %d pages from %u\n",npages,freepage);
 			return freepage;
 		}
 		
 
+	// return (vaddr_t)NULL;
 	return (vaddr_t)NULL;
 
 }
 void free_kpages(vaddr_t addr) {
-(void) addr;
+	kprintf("free vaddr:%u\n",addr);
+	//make all kinds of validity checks.e.g make sure tha addr>MIPS_KSEG0 for a kernel page
+	int index = (addr - MIPS_KSEG0)/PAGE_SIZE;
+	struct core_entry e = coremap[index];
+	kprintf("struct located. Chunk size:%d\n",e.chunk_size);
+	if(e.state == PAGE_FIXED && e.chunk_size!=0) {	//later we shouldnt be freeing FIXED pages
+		used_bytes-= (e.chunk_size * PAGE_SIZE);
+		for(int i=0;i<e.chunk_size;i++) {
+			coremap[index+i].state = PAGE_FREE;
+			coremap[index+i].chunk_size = 0;
+		}
+		
+	}
 }
 
 /*

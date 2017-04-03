@@ -74,12 +74,12 @@ ram_bootstrap(void)
 	coremap = (struct core_entry*)firstfree;
 	//setup structs of core_entry and store them to RAM
 	total_pages = ramsize/PAGE_SIZE;
-	firstfree = (vaddr_t)(coremap + total_pages);
+	
 
 	struct core_entry* traverse = coremap;
 	//set up first few entries in coremap as fixed (these correspond to the initial kernel entries already present)
-	int existing_pages_used = (unsigned int)(((struct core_entry*)firstpaddr - (struct core_entry*)0x0)/PAGE_SIZE);
-	int i = 0;
+	int existing_pages_used = (int)((firstfree - MIPS_KSEG0)/PAGE_SIZE);
+	int i = 0,j=0;
 	for(;i<existing_pages_used;i++) {
 
 		struct core_entry e;
@@ -93,8 +93,30 @@ ram_bootstrap(void)
 			e.chunk_size = 0;	
 		}
 		traverse[i] = e;
+	}	
+
+	//add entry for coremap itself
+	//find size of coremap
+	
+	struct core_entry* temp = (struct core_entry*)(coremap + total_pages);
+	(void)temp;
+	vaddr_t coremap_end = (vaddr_t)(coremap + total_pages);
+	while(coremap_end%PAGE_SIZE!=0) {
+		coremap_end++;
 	}
-	kprintf("%d \n",i);
+	int coremap_size = (coremap_end - (vaddr_t)coremap);
+	int coremap_pages = coremap_size/PAGE_SIZE;
+	//add entries for coremap itself
+	for(j=0;j<coremap_pages;j++) {
+		struct core_entry e;
+		e.state = PAGE_FIXED;
+		if(j==0) {
+			e.chunk_size = coremap_pages;
+		} 
+		traverse[i+j] = e;	
+	}
+	i += j;
+
 	//setup rest of pages
 	for(;i<total_pages; i++) {
 		struct core_entry e;
@@ -104,7 +126,15 @@ ram_bootstrap(void)
 		traverse[i] = e;
 		//traverse++;
 	}
-	used_bytes = (unsigned int)(firstfree - (vaddr_t)0x0); //assume that we include existing kernel pages + coremap size also as "used"
+
+	firstfree = (vaddr_t)coremap + (coremap_pages*PAGE_SIZE);	//	//(vaddr_t)(coremap + total_pages);
+	//align firstfree to PAGE_SIZE
+	KASSERT(firstfree%PAGE_SIZE==0);
+	// while(firstfree%PAGE_SIZE!=0) {
+	// 	firstfree++;
+	// }
+	used_bytes = (unsigned int)(firstfree - MIPS_KSEG0); //assume that we include existing kernel pages + coremap size also as "used"
+	kprintf("ram.c: used bytes:%u\n",used_bytes);
 
 	kprintf("%uk physical memory available\n",
 		(lastpaddr-firstpaddr)/1024);
