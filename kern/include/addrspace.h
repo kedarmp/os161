@@ -38,6 +38,7 @@
 
 #include <vm.h>
 #include "opt-dumbvm.h"
+#include <spinlock.h>
 
 struct vnode;
 
@@ -46,6 +47,7 @@ struct core_entry {
   int chunk_size;
 };
 
+extern struct spinlock core_lock;
 extern struct core_entry * coremap;
 extern unsigned int used_bytes;
 extern int total_pages;

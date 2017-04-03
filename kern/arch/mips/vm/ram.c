@@ -39,6 +39,8 @@ vaddr_t firstfree;   /* first free virtual address; set by start.S */
 static paddr_t firstpaddr;  /* address of first free physical page */
 static paddr_t lastpaddr;   /* one past end of last free physical page */
 
+struct spinlock core_lock;
+
 /*
  * Called very early in system boot to figure out how much physical
  * RAM is available.
@@ -46,6 +48,8 @@ static paddr_t lastpaddr;   /* one past end of last free physical page */
 void
 ram_bootstrap(void)
 {
+	spinlock_init(&core_lock);
+	spinlock_acquire(&core_lock);
 	size_t ramsize;
 
 	/* Get size of RAM. */
@@ -69,6 +73,9 @@ ram_bootstrap(void)
 	 * Convert to physical address.
 	 */
 	firstpaddr = firstfree - MIPS_KSEG0;
+
+	
+	
 
 	//init coremap
 	coremap = (struct core_entry*)firstfree;
@@ -134,10 +141,13 @@ ram_bootstrap(void)
 	// 	firstfree++;
 	// }
 	used_bytes = (unsigned int)(firstfree - MIPS_KSEG0); //assume that we include existing kernel pages + coremap size also as "used"
-	kprintf("ram.c: used bytes:%u\n",used_bytes);
+	// kprintf("ram.c: used bytes:%u\n",used_bytes);
+
 
 	kprintf("%uk physical memory available\n",
 		(lastpaddr-firstpaddr)/1024);
+
+	spinlock_release(&core_lock);
 }
 
 /*

@@ -36,6 +36,7 @@
 
 
 extern vaddr_t firstfree;
+struct spinlock core_lock;
 
 /*
  * Note! If OPT_DUMBVM is set, as is the case until you start the VM
@@ -61,7 +62,8 @@ return 0;
 
 /* Allocate/free kernel heap pages (called by kmalloc/kfree) */
 vaddr_t alloc_kpages(unsigned npages) {
-		
+
+		spinlock_acquire(&core_lock);	
 		struct core_entry* traverse_end = coremap;
 		struct core_entry* marker = traverse_end;
 		
@@ -92,7 +94,11 @@ vaddr_t alloc_kpages(unsigned npages) {
 			}
 		}
 		if(i==total_pages)
+		{
+			spinlock_release(&core_lock);	
 			return (vaddr_t)NULL;
+		}
+			
 		if(found == npages) {	//found "npages" free pages starting at traverse
 			//paddr_t ret_address = traverse_end - (npages*sizeof(struct core_entry));
 
@@ -105,29 +111,32 @@ vaddr_t alloc_kpages(unsigned npages) {
 			}
 			used_bytes += npages*PAGE_SIZE;
 			//return a physical address vaddr corresponding to "marker"
-			kprintf("Allocating %d pages from %u\n",npages,freepage);
+			// kprintf("Allocating %d pages from %u\n",npages,freepage);
+			spinlock_release(&core_lock);
 			return freepage;
 		}
 		
 
 	// return (vaddr_t)NULL;
+	spinlock_release(&core_lock);
 	return (vaddr_t)NULL;
 
 }
 void free_kpages(vaddr_t addr) {
-	kprintf("free vaddr:%u\n",addr);
+	// kprintf("free vaddr:%u\n",addr);
 	//make all kinds of validity checks.e.g make sure tha addr>MIPS_KSEG0 for a kernel page
+	spinlock_acquire(&core_lock);
 	int index = (addr - MIPS_KSEG0)/PAGE_SIZE;
 	struct core_entry e = coremap[index];
-	kprintf("struct located. Chunk size:%d\n",e.chunk_size);
+	// kprintf("struct located. Chunk size:%d\n",e.chunk_size);
 	if(e.state == PAGE_FIXED && e.chunk_size!=0) {	//later we shouldnt be freeing FIXED pages
 		used_bytes-= (e.chunk_size * PAGE_SIZE);
 		for(int i=0;i<e.chunk_size;i++) {
 			coremap[index+i].state = PAGE_FREE;
 			coremap[index+i].chunk_size = 0;
-		}
-		
+		}	
 	}
+	spinlock_release(&core_lock);
 }
 
 /*
