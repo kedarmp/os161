@@ -89,7 +89,7 @@ pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *err
 	if(err) {
 		
 		//Reduce shared filehandle ref counts(i.e. simply call close). Corner case when thread_fork itself fails. Won't be called regularly
-		for(i = 0; i<OPEN_MAX;i++) {
+		for(i = 3; i<OPEN_MAX;i++) {
 			// kprintf("closing\n");
 			sys_close(i,&err);
 		}

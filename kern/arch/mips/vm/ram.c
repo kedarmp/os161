@@ -75,7 +75,7 @@ ram_bootstrap(void)
 	firstpaddr = firstfree - MIPS_KSEG0;
 
 	
-	
+/*	
 
 	//init coremap
 	coremap = (struct core_entry*)firstfree;
@@ -148,6 +148,7 @@ ram_bootstrap(void)
 		(lastpaddr-firstpaddr)/1024);
 
 	spinlock_release(&core_lock);
+*/
 }
 
 /*
