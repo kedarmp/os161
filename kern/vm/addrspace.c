@@ -38,6 +38,7 @@
 extern vaddr_t firstfree;
 struct spinlock core_lock;
 
+
 /*
  * Note! If OPT_DUMBVM is set, as is the case until you start the VM
  * assignment, this file is not compiled or linked or in any way
@@ -48,6 +49,10 @@ struct core_entry* coremap;
 //paddr_t first_free;
 unsigned int used_bytes;
 int total_pages;
+
+
+void update_heap(struct addrspace *as, vaddr_t new_heap_start);
+
 
 void vm_bootstrap(void) {
 
@@ -139,6 +144,57 @@ void free_kpages(vaddr_t addr) {
 	spinlock_release(&core_lock);
 }
 
+
+
+// ALloc user page:
+
+/* Allocate/free kernel heap pages (called by kmalloc/kfree) */
+vaddr_t alloc_upage(void) {
+
+		spinlock_acquire(&core_lock);	
+		struct core_entry* traverse_end = coremap;		
+		struct core_entry e;
+		
+		vaddr_t freepage = firstfree;
+
+		int i;
+		for( i=0; i<total_pages; i++) {
+			e = traverse_end[i];
+			if(e.state == PAGE_FREE) {
+				freepage = MIPS_KSEG0 + PAGE_SIZE*(i+1); //update physical address too
+				traverse_end[i].state = PAGE_USER;	//can be swapped out in 3.3
+				traverse_end[i].chunk_size = 1;	//else its zero
+				used_bytes += PAGE_SIZE;
+			}
+
+		}
+		if(i==total_pages)
+		{
+			spinlock_release(&core_lock);	
+			return (vaddr_t)NULL;
+		}
+		
+		spinlock_release(&core_lock);
+		return freepage;
+}
+
+void free_upage(vaddr_t addr) {
+	spinlock_acquire(&core_lock);
+	int index = (addr - MIPS_KSEG0)/PAGE_SIZE;
+	struct core_entry e = coremap[index];
+	// kprintf("struct located. Chunk size:%d\n",e.chunk_size);
+	if(e.state == PAGE_USER && e.chunk_size!=0) {	//later we shouldnt be freeing FIXED pages
+		used_bytes-= PAGE_SIZE;
+		coremap[index].state = PAGE_FREE;
+		coremap[index].chunk_size = 0;
+	}
+	spinlock_release(&core_lock);
+}
+
+
+
+
+
 /*
  * Return amount of memory (in bytes) used by allocated coremap pages.  If
  * there are ongoing allocations, this value could change after it is returned
@@ -168,7 +224,28 @@ void vm_tlbshootdown(const struct tlbshootdown * t) {
 
 
 
+
  //----------------------//
+
+
+//different functions for clarity
+paddr_t trim_physical(paddr_t original) {
+	original = original >>12;
+	original = original <<12;
+	return original;
+}
+vaddr_t trim_virtual(vaddr_t original) {
+	original = original >>12;
+	original = original <<12;
+	return original;
+}
+
+
+void update_heap(struct addrspace *as, vaddr_t new_heap_start) {
+	as->heap_region->start = new_heap_start;
+	as->heap_region->end = new_heap_start;
+}
+
 
 struct addrspace *
 as_create(void)
@@ -179,10 +256,18 @@ as_create(void)
 	if (as == NULL) {
 		return NULL;
 	}
-
-	/*
-	 * Initialize as needed.
-	 */
+	as->a_regions = NULL;
+	as->stack_region = kmalloc(sizeof(struct region));
+	if(as->stack_region == NULL)
+		return NULL;
+	as->stack_region->next = NULL;
+	
+	as->heap_region = kmalloc(sizeof(struct region));
+	if(as->heap_region == NULL)
+		return NULL;
+	as->heap_region->next = NULL;
+	as->total_region_end = 0;
+	as->page_table = NULL;
 
 	return as;
 }
@@ -217,23 +302,27 @@ as_destroy(struct addrspace *as)
 	kfree(as);
 }
 
+
+//simply copied from dumbvm.c(reused as carl says)
 void
 as_activate(void)
 {
+	int i, spl;
 	struct addrspace *as;
 
 	as = proc_getas();
 	if (as == NULL) {
-		/*
-		 * Kernel thread without an address space; leave the
-		 * prior address space in place.
-		 */
 		return;
 	}
 
-	/*
-	 * Write this.
-	 */
+	/* Disable interrupts on this CPU while frobbing the TLB. */
+	spl = splhigh();
+
+	for (i=0; i<NUM_TLB; i++) {
+		tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
+	}
+
+	splx(spl);
 }
 
 void
@@ -243,7 +332,7 @@ as_deactivate(void)
 	 * Write this. For many designs it won't need to actually do
 	 * anything. See proc.c for an explanation of why it (might)
 	 * be needed.
-	 */
+	 */	
 }
 
 /*
@@ -260,17 +349,43 @@ int
 as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 		 int readable, int writeable, int executable)
 {
-	/*
-	 * Write this.
-	 */
+	//do we need to check if vaddr is page aligned? dumbvm does that
 
-	(void)as;
-	(void)vaddr;
-	(void)memsize;
+	struct region *mover = as->a_regions;
+	if(as->a_regions==NULL) {
+		//first region
+		as->a_regions = kmalloc(sizeof(struct region));
+		if(as->a_regions == NULL) {
+			return ENOSYS;
+		}
+		as->a_regions->start = vaddr;
+		as->a_regions->end = vaddr + memsize;
+		as->a_regions->next = NULL;
+		as->total_region_end = vaddr+memsize;
+	}
+	else {
+		while(mover->next!=NULL) {
+			mover = as->a_regions->next;
+			}
+		struct region *new_region = kmalloc(sizeof(struct region));
+		if(new_region == NULL) {
+			return ENOSYS;
+		}
+		new_region->start = vaddr;
+		new_region->end = vaddr + memsize;
+		new_region->next = NULL;
+		mover->next = new_region;
+		if(vaddr+memsize > as->total_region_end) {
+			as->total_region_end = vaddr+memsize;
+		}			
+	}
+	
+	update_heap(as, as->total_region_end);
+
 	(void)readable;
 	(void)writeable;
 	(void)executable;
-	return ENOSYS;
+	return 0;
 }
 
 int
@@ -298,11 +413,8 @@ as_complete_load(struct addrspace *as)
 int
 as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
-	/*
-	 * Write this.
-	 */
-
-	(void)as;
+	as->stack_region->start = USERSTACK;
+	as->stack_region->end = USERSTACK - CUSTOM_STACK_SIZE;
 
 	/* Initial user-level stack pointer */
 	*stackptr = USERSTACK;

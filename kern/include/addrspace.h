@@ -31,6 +31,7 @@
 #define _ADDRSPACE_H_
 #define PAGE_FIXED 1
 #define PAGE_FREE 2
+#define PAGE_USER 3
 /*
  * Address space structure and operations.
  */
@@ -38,7 +39,14 @@
 
 #include <vm.h>
 #include "opt-dumbvm.h"
+ #include <mips/tlb.h>
+ #include <spl.h>
+
 #include <spinlock.h>
+#define CUSTOM_STACK_SIZE 8*PAGE_SIZE //try experimenting with different sizes
+
+#define PTE_ON_DISK 1
+#define PTE_IN_MEMORY 2     //for 3.2 we'll have all pages in MEMORY
 
 struct vnode;
 
@@ -62,6 +70,19 @@ extern int total_pages;
  * You write this.
  */
 
+ struct region {
+    vaddr_t start;
+    vaddr_t end;
+    struct region* next;    
+ };
+
+ struct pte {
+    vaddr_t vpn;
+    paddr_t ppn;
+    int state;
+    struct pte *next;
+ };
+
 struct addrspace {
 #if OPT_DUMBVM
         vaddr_t as_vbase1;
@@ -73,10 +94,20 @@ struct addrspace {
         paddr_t as_stackpbase;
 #else
         /* Put stuff here for your VM system */
+        struct region *a_regions;
+        vaddr_t total_region_end; //end of a_regions (does not include heap/stack!)
+        struct region *stack_region;
+        struct region *heap_region;
+        //page table
+        struct pte *page_table;
+
 #endif
 };
 
 
+
+paddr_t trim_physical(paddr_t original);
+vaddr_t trim_virtual(vaddr_t original);
 
 void vm_bootstrap(void);
 
@@ -86,6 +117,8 @@ int vm_fault(int faulttype, vaddr_t faultaddress);
 /* Allocate/free kernel heap pages (called by kmalloc/kfree) */
 vaddr_t alloc_kpages(unsigned npages);
 void free_kpages(vaddr_t addr);
+vaddr_t alloc_upage(void);
+void free_upage(vaddr_t addr);
 
 /*
  * Return amount of memory (in bytes) used by allocated coremap pages.  If
