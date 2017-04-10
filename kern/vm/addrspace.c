@@ -272,6 +272,43 @@ as_create(void)
 	return as;
 }
 
+
+void
+as_destroy(struct addrspace *as)
+{
+	if(as!=NULL) {
+		//deallocate a_regions linkedlist
+		if(as->a_regions != NULL) {
+			struct region * mover1 = as->a_regions;
+			struct region *mover2 = NULL;
+			while(mover1!=NULL) {
+				mover2 = mover1->next;
+				kfree(mover1);
+				mover1 = mover2;
+			}
+		}
+		//deallocate stack and heap regions
+		if(as->stack_region!=NULL)
+			kfree(as->stack_region);
+		if(as->heap_region!=NULL)		//where to call free_upage?
+			kfree(as->heap_region);
+
+		//deallocate page table
+		if(as->page_table != NULL) {
+			struct pte *mover1 = as->page_table;
+			struct pte *mover2 = NULL;
+			while(mover1 != NULL) {
+				mover2 = mover1->next;
+				kfree(mover1);
+				mover1 = mover2;
+			}
+		}
+		kfree(as);
+
+
+	}
+}
+
 int
 as_copy(struct addrspace *old, struct addrspace **ret)
 {
@@ -292,15 +329,6 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 	return 0;
 }
 
-void
-as_destroy(struct addrspace *as)
-{
-	/*
-	 * Clean up as needed.
-	 */
-
-	kfree(as);
-}
 
 
 //simply copied from dumbvm.c(reused as carl says)
