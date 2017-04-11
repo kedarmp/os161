@@ -47,6 +47,7 @@
 
 #define PTE_ON_DISK 1
 #define PTE_IN_MEMORY 2     //for 3.2 we'll have all pages in MEMORY
+#define PTE_UNASSIGNED 3  //physical page is not assigned to such a virtual page
 
 struct vnode;
 
@@ -97,6 +98,7 @@ struct addrspace {
         struct region *a_regions;
         vaddr_t total_region_end; //end of a_regions (does not include heap/stack!)
         struct region *stack_region;
+        //Stack start is always 80mllion and sytack end is the current stack pointer(which changes with alloc/deallocations)
         struct region *heap_region;
         //page table
         struct pte *page_table;
@@ -117,7 +119,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress);
 /* Allocate/free kernel heap pages (called by kmalloc/kfree) */
 vaddr_t alloc_kpages(unsigned npages);
 void free_kpages(vaddr_t addr);
-vaddr_t alloc_upage(void);
+paddr_t alloc_upage(void);
 void free_upage(vaddr_t addr);
 
 /*

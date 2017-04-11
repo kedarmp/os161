@@ -135,6 +135,7 @@ ram_bootstrap(void)
 	}
 
 	firstfree = (vaddr_t)coremap + (coremap_pages*PAGE_SIZE);	//	//(vaddr_t)(coremap + total_pages);
+	firstpaddr = firstfree - MIPS_KSEG0;
 	//align firstfree to PAGE_SIZE
 	KASSERT(firstfree%PAGE_SIZE==0);
 	// while(firstfree%PAGE_SIZE!=0) {
@@ -228,4 +229,10 @@ ram_getfirstfree(void)
 	ret = firstpaddr;
 	firstpaddr = lastpaddr = 0;
 	return ret;
+}
+
+paddr_t
+get_first_paddr(void)
+{
+	return firstpaddr;
 }

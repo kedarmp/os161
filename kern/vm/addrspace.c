@@ -33,6 +33,12 @@
 #include <addrspace.h>
 #include <vm.h>
 #include <proc.h>
+#include <current.h>
+#include <mips/tlb.h>
+ #include <spl.h>
+
+
+//#include <kern/vm.h>
 
 
 extern vaddr_t firstfree;
@@ -52,17 +58,167 @@ int total_pages;
 
 
 void update_heap(struct addrspace *as, vaddr_t new_heap_start);
-
+int check_valid_seg(vaddr_t faultaddress ,struct addrspace *as);
+struct pte* check_in_page_table(vaddr_t faultaddress,struct addrspace *as);
+struct pte* create_pte(vaddr_t faultaddress, struct addrspace *as);
 
 void vm_bootstrap(void) {
 
 }
 
+int check_valid_seg(vaddr_t faultaddress ,struct addrspace *as)
+{
+	//0 - not found
+	//1 - found 
+	if(faultaddress == (vaddr_t)NULL)
+	{
+		return 0;
+	}
+	struct region* mover = as->a_regions;
+	while(mover!=NULL)
+	{
+		if(faultaddress >= mover->start && faultaddress <= mover->end)
+		{
+			return 1;
+		}
+		mover = mover->next;
+	}
+	//CHECK HEAP 
+	if(faultaddress >= as->heap_region->start && faultaddress <= as->heap_region->end)
+	{
+		return 1;
+	}
+	//CHECK - STACK 
+	if(faultaddress <= as->stack_region->start && faultaddress >= (as->stack_region->start - CUSTOM_STACK_SIZE))
+	{
+		return 1;
+	}
+
+	return 0;
+}
+
+struct pte* check_in_page_table(vaddr_t faultaddress,struct addrspace *as)
+{
+	//0 - not found
+	//1 - found 
+	if(faultaddress == (vaddr_t)NULL)
+	{
+		return NULL;
+	}
+	vaddr_t vpn = trim_virtual(faultaddress);
+
+	struct pte* mover = as->page_table;
+
+	while(mover!=NULL)
+	{
+		if(vpn == mover->vpn)
+		{
+			return mover;
+		}
+		mover = mover->next;
+	}
+	return NULL;
+}
+
+struct pte* create_pte(vaddr_t faultaddress, struct addrspace *as)
+{
+	//Do we have to update stack pointer(stack->end in our case) 
+	
+	struct pte *mover = as->page_table;
+	if(mover==NULL) {
+		//first region
+		as->page_table = kmalloc(sizeof(struct pte));
+		if(as->page_table == NULL) {
+			//UNDO EVERYTHING DONE BEFORE -> ALL KMALLOCS
+			return NULL;
+		}
+		as->page_table->vpn = trim_virtual(faultaddress);
+		as->page_table->ppn = 0;
+		as->page_table->next = NULL;
+		as->page_table->state = PTE_UNASSIGNED;
+		return as->page_table;
+	}
+	else {
+		while(mover->next!=NULL) {
+			mover = mover->next;
+
+			}
+		struct pte *new_pte = kmalloc(sizeof(struct pte));
+		if(new_pte == NULL) {
+			//undo all kmallocs above
+			return NULL;
+		}
+		new_pte->vpn = trim_virtual(faultaddress);
+		new_pte->ppn = 0;
+		new_pte->next = NULL;
+		new_pte->state = PTE_UNASSIGNED;
+		mover->next = new_pte;
+		return new_pte;			
+	}
+	return NULL;
+}
+
+
 /* Fault handling function called by trap code */
 int vm_fault(int faulttype, vaddr_t faultaddress) {
-(void)faulttype;
-(void)faultaddress;
-return 0;
+	(void)faulttype;
+	int spl;
+	if(curproc == NULL)
+	{
+		return EFAULT;
+	}
+	struct addrspace *as = proc_getas();
+	if(as == NULL)
+	{
+		return EFAULT;
+	}
+	int ret = check_valid_seg(faultaddress,as);
+	if(ret == 0)
+	{
+		return EFAULT;
+	}
+
+	struct pte *page = check_in_page_table(faultaddress,as);
+	if(page == NULL)
+	{
+		//Create a new PTE
+		page = create_pte(faultaddress, as);
+		if(page == NULL) {
+			return EFAULT;
+		}
+
+	}
+	//check if a physical page has been allocated, if not, allocate it
+	if(page->state == PTE_UNASSIGNED) {
+		paddr_t new_paddr = alloc_upage();
+		page->ppn = trim_physical(new_paddr);
+		page->state = PTE_IN_MEMORY;
+	}
+	if(page->state == PTE_IN_MEMORY)
+	{
+		//UPDATE TLB
+		spl = splhigh();
+		int i=0;
+		for (i=0; i<NUM_TLB; i++) {
+		uint32_t ehi, elo;
+		tlb_read(&ehi, &elo, i);
+		if(ehi == page->vpn) {
+			tlb_write(page->vpn, page->ppn| TLBLO_DIRTY | TLBLO_VALID, i);
+			break;
+		}
+	}
+	if(i==NUM_TLB) {
+		//no existing entry in tlb
+		tlb_random(page->vpn, page->ppn);
+	}
+	splx(spl);
+
+	}
+	// else
+	// {
+	// 	//SWAPPING 
+	// }
+	return 0;
 }
 
 /* Allocate/free kernel heap pages (called by kmalloc/kfree) */
@@ -149,41 +305,43 @@ void free_kpages(vaddr_t addr) {
 // ALloc user page:
 
 /* Allocate/free kernel heap pages (called by kmalloc/kfree) */
-vaddr_t alloc_upage(void) {
+paddr_t alloc_upage(void) {
 
 		spinlock_acquire(&core_lock);	
 		struct core_entry* traverse_end = coremap;		
 		struct core_entry e;
 		
-		vaddr_t freepage = firstfree;
+		paddr_t free_p_page = get_first_paddr();
 
 		int i;
 		for( i=0; i<total_pages; i++) {
 			e = traverse_end[i];
 			if(e.state == PAGE_FREE) {
-				freepage = MIPS_KSEG0 + PAGE_SIZE*(i+1); //update physical address too
+				free_p_page = PAGE_SIZE*(i); //update physical address too
 				traverse_end[i].state = PAGE_USER;	//can be swapped out in 3.3
 				traverse_end[i].chunk_size = 1;	//else its zero
 				used_bytes += PAGE_SIZE;
+				break;
 			}
 
 		}
 		if(i==total_pages)
 		{
 			spinlock_release(&core_lock);	
-			return (vaddr_t)NULL;
+			return (paddr_t)NULL;
 		}
 		
 		spinlock_release(&core_lock);
-		return freepage;
+		return free_p_page;
 }
 
 void free_upage(vaddr_t addr) {
 	spinlock_acquire(&core_lock);
-	int index = (addr - MIPS_KSEG0)/PAGE_SIZE;
+	int index = (addr)/PAGE_SIZE;
 	struct core_entry e = coremap[index];
 	// kprintf("struct located. Chunk size:%d\n",e.chunk_size);
 	if(e.state == PAGE_USER && e.chunk_size!=0) {	//later we shouldnt be freeing FIXED pages
+		//kprintf("Alloc_U_PAGES:Found \n");
 		used_bytes-= PAGE_SIZE;
 		coremap[index].state = PAGE_FREE;
 		coremap[index].chunk_size = 0;
@@ -299,13 +457,14 @@ as_destroy(struct addrspace *as)
 			struct pte *mover2 = NULL;
 			while(mover1 != NULL) {
 				mover2 = mover1->next;
+
+				//FREEUPAGE WITH MOVER->PHYSICAL ADDRESS
+				
 				kfree(mover1);
 				mover1 = mover2;
 			}
 		}
 		kfree(as);
-
-
 	}
 }
 
@@ -410,6 +569,16 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 	
 	update_heap(as, as->total_region_end);
 
+	//create PTEs for every page in this region(with no physical pages aallocated)
+	//convert memsize to num pages
+	int num_pages = memsize/PAGE_SIZE;
+	if(memsize%PAGE_SIZE!=0) {
+		num_pages++;
+	}
+	for(int i=0;i<num_pages;i++) {
+		create_pte(vaddr+(i*PAGE_SIZE),as);
+	}
+
 	(void)readable;
 	(void)writeable;
 	(void)executable;
@@ -442,7 +611,7 @@ int
 as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
 	as->stack_region->start = USERSTACK;
-	as->stack_region->end = USERSTACK - CUSTOM_STACK_SIZE;
+	as->stack_region->end = as->stack_region->start;
 
 	/* Initial user-level stack pointer */
 	*stackptr = USERSTACK;
