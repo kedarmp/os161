@@ -77,19 +77,21 @@ int check_valid_seg(vaddr_t faultaddress ,struct addrspace *as)
 	struct region* mover = as->a_regions;
 	while(mover!=NULL)
 	{
-		if(faultaddress >= mover->start && faultaddress <= mover->end)
+		if(faultaddress >= mover->start && faultaddress < mover->end)
 		{
 			return 1;
 		}
 		mover = mover->next;
 	}
-	//CHECK HEAP 
-	if(faultaddress >= as->heap_region->start && faultaddress <= as->heap_region->end)
+	
+	//CHECK - STACK 
+	if(faultaddress >= as->stack_region->start && faultaddress < (as->stack_region->end))
 	{
 		return 1;
 	}
-	//CHECK - STACK 
-	if(faultaddress <= as->stack_region->start && faultaddress >= (as->stack_region->start - CUSTOM_STACK_SIZE))
+
+	//CHECK HEAP 
+	if(faultaddress >= as->heap_region->start && faultaddress < as->heap_region->end)
 	{
 		return 1;
 	}
@@ -124,6 +126,8 @@ struct pte* create_pte(vaddr_t faultaddress, struct addrspace *as)
 {
 	//Do we have to update stack pointer(stack->end in our case) 
 	
+	paddr_t new_p_page = alloc_upage();
+
 	struct pte *mover = as->page_table;
 	if(mover==NULL) {
 		//first region
@@ -133,9 +137,9 @@ struct pte* create_pte(vaddr_t faultaddress, struct addrspace *as)
 			return NULL;
 		}
 		as->page_table->vpn = trim_virtual(faultaddress);
-		as->page_table->ppn = 0;
+		as->page_table->ppn = trim_physical(new_p_page);
 		as->page_table->next = NULL;
-		as->page_table->state = PTE_UNASSIGNED;
+		as->page_table->state = PTE_IN_MEMORY;
 		return as->page_table;
 	}
 	else {
@@ -149,9 +153,9 @@ struct pte* create_pte(vaddr_t faultaddress, struct addrspace *as)
 			return NULL;
 		}
 		new_pte->vpn = trim_virtual(faultaddress);
-		new_pte->ppn = 0;
+		new_pte->ppn = trim_physical(new_p_page);
 		new_pte->next = NULL;
-		new_pte->state = PTE_UNASSIGNED;
+		new_pte->state = PTE_IN_MEMORY;
 		mover->next = new_pte;
 		return new_pte;			
 	}
@@ -189,29 +193,13 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 
 	}
 	//check if a physical page has been allocated, if not, allocate it
-	if(page->state == PTE_UNASSIGNED) {
-		paddr_t new_paddr = alloc_upage();
-		page->ppn = trim_physical(new_paddr);
-		page->state = PTE_IN_MEMORY;
-	}
+	KASSERT(page->state == PTE_IN_MEMORY);
 	if(page->state == PTE_IN_MEMORY)
 	{
 		//UPDATE TLB
 		spl = splhigh();
-		int i=0;
-		for (i=0; i<NUM_TLB; i++) {
-		uint32_t ehi, elo;
-		tlb_read(&ehi, &elo, i);
-		if(ehi == page->vpn) {
-			tlb_write(page->vpn, page->ppn| TLBLO_DIRTY | TLBLO_VALID, i);
-			break;
-		}
-	}
-	if(i==NUM_TLB) {
-		//no existing entry in tlb
-		tlb_random(page->vpn, page->ppn);
-	}
-	splx(spl);
+		tlb_random(page->vpn, (page->ppn) | TLBLO_DIRTY | TLBLO_VALID);
+		splx(spl);
 
 	}
 	// else
@@ -311,14 +299,14 @@ paddr_t alloc_upage(void) {
 		struct core_entry* traverse_end = coremap;		
 		struct core_entry e;
 		
-		paddr_t free_p_page = get_first_paddr();
+		paddr_t free_p_page = firstfree;
 
 		int i;
 		for( i=0; i<total_pages; i++) {
 			e = traverse_end[i];
 			if(e.state == PAGE_FREE) {
-				free_p_page = PAGE_SIZE*(i); //update physical address too
-				traverse_end[i].state = PAGE_USER;	//can be swapped out in 3.3
+				free_p_page =  PAGE_SIZE*(i); //update physical address too
+				traverse_end[i].state = 30;	//can be swapped out in 3.3
 				traverse_end[i].chunk_size = 1;	//else its zero
 				used_bytes += PAGE_SIZE;
 				break;
@@ -332,15 +320,18 @@ paddr_t alloc_upage(void) {
 		}
 		
 		spinlock_release(&core_lock);
-		return free_p_page;
+		bzero((void*)(free_p_page+MIPS_KSEG0), PAGE_SIZE);
+		return (free_p_page);
 }
 
-void free_upage(vaddr_t addr) {
+void free_upage(paddr_t addr) {
 	spinlock_acquire(&core_lock);
 	int index = (addr)/PAGE_SIZE;
 	struct core_entry e = coremap[index];
 	// kprintf("struct located. Chunk size:%d\n",e.chunk_size);
-	if(e.state == PAGE_USER && e.chunk_size!=0) {	//later we shouldnt be freeing FIXED pages
+	KASSERT(e.state == 30);
+	KASSERT(e.chunk_size != 0);
+	if(e.state == 30 && e.chunk_size!=0) {	//later we shouldnt be freeing FIXED pages
 		//kprintf("Alloc_U_PAGES:Found \n");
 		used_bytes-= PAGE_SIZE;
 		coremap[index].state = PAGE_FREE;
@@ -388,14 +379,14 @@ void vm_tlbshootdown(const struct tlbshootdown * t) {
 
 //different functions for clarity
 paddr_t trim_physical(paddr_t original) {
-	original = original >>12;
-	original = original <<12;
-	return original;
+	// original = original >>12;
+	// original = original <<12;
+	return (original & 0xfffff000);
 }
 vaddr_t trim_virtual(vaddr_t original) {
-	original = original >>12;
-	original = original <<12;
-	return original;
+	// original = original >>12;
+	// original = original <<12;
+	return (original & 0xfffff000);
 }
 
 
@@ -457,9 +448,8 @@ as_destroy(struct addrspace *as)
 			struct pte *mover2 = NULL;
 			while(mover1 != NULL) {
 				mover2 = mover1->next;
-
-				//FREEUPAGE WITH MOVER->PHYSICAL ADDRESS
-				
+				//free physical page
+				free_upage( mover1->ppn);
 				kfree(mover1);
 				mover1 = mover2;
 			}
@@ -478,11 +468,69 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 		return ENOMEM;
 	}
 
-	/*
-	 * Write this.
-	 */
 
-	(void)old;
+	//copy regions
+	struct region * mover_old = old->a_regions;
+	struct region * mover_new = NULL;
+
+	while(mover_old!=NULL) {
+		struct region *next_region = kmalloc(sizeof(struct region));
+		if(next_region == NULL) {
+			return ENOMEM;
+		}
+		if(newas->a_regions == NULL) {
+			newas->a_regions = next_region;
+		}
+		if(mover_new != NULL) {
+			mover_new->next = next_region;
+		}
+		next_region->start = mover_old->start;
+		next_region->end = mover_old->end;	
+		next_region->next = NULL;
+		mover_old = mover_old->next;
+		
+		mover_new = next_region;
+	}
+	//copy stack and heap
+	newas->stack_region->start = old->stack_region->start;
+	newas->stack_region->end = old->stack_region->end;
+	//copy stack contents
+	// memmove((void *)(newas->stack_region->start),(const void*)(old->stack_region->start),CUSTOM_STACK_SIZE);
+
+	newas->heap_region->start = old->heap_region->start;
+	newas->heap_region->end = old->heap_region->end;
+
+	// newas->page_table = kmalloc(sizeof(struct pte));
+	//copy ptes
+	struct pte * pte_old = old->page_table;
+	struct pte * mover = NULL;
+
+
+	while(pte_old!=NULL) {
+		struct pte *pte_new = kmalloc(sizeof(struct pte));
+		if(pte_new == NULL) {
+			return ENOMEM;
+		}
+		if(newas->page_table == NULL) {
+			newas->page_table = pte_new;
+		}
+		if(mover!=NULL) {
+			mover->next = pte_new;
+		}
+
+		pte_new->next = NULL;
+		pte_new->vpn = pte_old->vpn;
+		pte_new->state = PTE_IN_MEMORY;
+		//allocate new physical page for this pte
+		paddr_t new_p_page= alloc_upage();
+		pte_new->ppn = trim_physical(new_p_page);
+
+		//copy contents of old physical page to new physical page
+		memmove((void *)(MIPS_KSEG0 + pte_new->ppn),(const void*)(MIPS_KSEG0 + pte_old->ppn),PAGE_SIZE);
+	
+		pte_old = pte_old->next;
+		mover = pte_new;
+	}
 
 	*ret = newas;
 	return 0;
@@ -569,15 +617,6 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 	
 	update_heap(as, as->total_region_end);
 
-	//create PTEs for every page in this region(with no physical pages aallocated)
-	//convert memsize to num pages
-	int num_pages = memsize/PAGE_SIZE;
-	if(memsize%PAGE_SIZE!=0) {
-		num_pages++;
-	}
-	for(int i=0;i<num_pages;i++) {
-		create_pte(vaddr+(i*PAGE_SIZE),as);
-	}
 
 	(void)readable;
 	(void)writeable;
@@ -610,13 +649,11 @@ as_complete_load(struct addrspace *as)
 int
 as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
-	as->stack_region->start = USERSTACK;
-	as->stack_region->end = as->stack_region->start;
+	as->stack_region->start = USERSTACK - CUSTOM_STACK_SIZE;
+	as->stack_region->end = USERSTACK;
 
 	/* Initial user-level stack pointer */
 	*stackptr = USERSTACK;
 
 	return 0;
 }
-
-

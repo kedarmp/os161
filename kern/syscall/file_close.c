@@ -15,7 +15,7 @@ int sys_close(int fd,int *errptr) {
 	}
 
 	struct fhandle *f_handle_name = (curproc->ftable[fd]);	
-	if(f_handle_name == NULL  || f_handle_name == (struct fhandle *)0xdeadbeef)
+	if(f_handle_name == NULL)//  || f_handle_name == (struct fhandle *)0xdeadbeef)
 	{
 		*errptr = EBADF;
 		return -1;

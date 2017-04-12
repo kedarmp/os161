@@ -38,7 +38,7 @@ int
 main(void)
 {
 	/* Just exit with success. */
-	/*int pid = fork();
+	int pid = fork();
 	if(pid == 0)
 	{
 		printf("Child");
@@ -46,8 +46,8 @@ main(void)
 	else 
 	{
 		printf("Parent");
-	}*/
-
+	}
+/*
 	char* args[4];
 	char arg0[] = "testbin/add";
 	char arg1[] = "2";
@@ -59,6 +59,6 @@ main(void)
 	// args[3] = arg2;
 	args[3] = NULL;
 	execv("testbin/add",args);
-	printf("should not print");
+	printf("should not print");*/
 	exit(0);
 }
