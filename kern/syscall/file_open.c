@@ -25,7 +25,7 @@ int sys_open(const_userptr_t filename, int flags,int *errptr) {
 	// kprintf("sys_open:fd:%s\n",buffer);
 	//check if there is space in our file table to open another file
 	int count = 3;
-	for(;count<__OPEN_MAX && curproc->ftable[count]!=NULL && curproc->ftable[count]!=(struct fhandle *)0xdeadbeef;count++)
+	for(;count<__OPEN_MAX && curproc->ftable[count]!=NULL;count++) //&& curproc->ftable[count]!=(struct fhandle *)0xdeadbeef;count++)
 	;	//linear search
 	if(count<__OPEN_MAX) {
 		//create a new file handle
