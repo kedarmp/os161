@@ -67,9 +67,10 @@ if(curproc->ftable[newfd]!=NULL)
 
 lock_acquire(f_handle_name->lock);
 //copy fhandle at oldfd into newfd
+curproc->ftable[oldfd]->rcount++;
 curproc->ftable[newfd] = curproc-> ftable[oldfd];
 //Incerement the reader count.
-curproc->ftable[newfd]->rcount++;
+
 //No errror
 
 lock_release(f_handle_name->lock);

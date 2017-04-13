@@ -36,6 +36,10 @@ pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *err
 		*errptr = ENOMEM;
 		return -1;
 	}
+
+	for(int i=0;i<OPEN_MAX;i++) {
+		child->ftable[i] = NULL;
+	}
 	
 //	kprintf("Forking..\n");
 	//copy stuff from parent
@@ -73,7 +77,8 @@ pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *err
 	int i;
 	for(i = 0;i<OPEN_MAX;i++)
 	{
-		if(parent_proc -> ftable[i]!= NULL && parent_proc ->ftable[i]!=(struct fhandle*)0xdeadbeef) {
+		if(parent_proc -> ftable[i]!= NULL) //&& parent_proc ->ftable[i]!=(struct fhandle*)0xdeadbeef) 
+		{
 		struct fhandle *parent_handle = parent_proc->ftable[i];
 		lock_acquire(parent_handle->lock);
 		
@@ -87,11 +92,11 @@ pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *err
 
 	err = thread_fork("Userthread", child, enter_forked_process, child_tf, 0);
 	if(err) {
-		kprintf("fork failed!");
+		//kprintf("fork failed!");
 		//Reduce shared filehandle ref counts(i.e. simply call close). Corner case when thread_fork itself fails. Won't be called regularly
-		for(i = 0; i<OPEN_MAX;i++) {
-			sys_close(i,&err);
-		}
+		// for(i = 0; i<OPEN_MAX;i++) {
+		// 	sys_close(i,&err);
+		// }
 		kfree(child_tf);
 		proc_destroy(child);
 		recycle_pid(child_id);
