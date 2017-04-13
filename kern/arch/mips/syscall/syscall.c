@@ -48,6 +48,9 @@
 #include <addrspace.h>
 #include <sys_execv.h>
 #include <sys_dup2.h>
+ #include<sys_sbrk.h>
+
+ int errno;
 /*
  * System call dispatcher.
  *
@@ -113,6 +116,7 @@ syscall(struct trapframe *tf)
 	retval = 0;
 	off_t seek_offset=0;
 	uint32_t seek_low=0, seek_high=0;
+	uint32_t sbrk_ret = 0;
 
 	switch (callno) {
 	    case SYS_reboot:
@@ -177,6 +181,10 @@ syscall(struct trapframe *tf)
 			retval = sys_dup2(tf->tf_a0,tf->tf_a1,&err); 
 		break;
 
+		case SYS_sbrk:
+			sbrk_ret = (uint32_t)sys_sbrk(tf->tf_a0,&err);
+		break;
+
 	    default:
 		kprintf("Unknown syscall %d\n", callno);
 		err = ENOSYS;
@@ -192,6 +200,8 @@ syscall(struct trapframe *tf)
 		 */
 		tf->tf_v0 = err;
 		tf->tf_a3 = 1;      /* signal an error */
+		if(callno == SYS_sbrk)
+			errno = err;
 	}
 	else {
 		/* Success. */
@@ -199,8 +209,11 @@ syscall(struct trapframe *tf)
 			tf->tf_v0 = seek_high;
 			tf->tf_v1 = seek_low;
 		}
+		else if(callno == SYS_sbrk) {
+			tf->tf_v0 = sbrk_ret;		
+		}
 		else {
-		tf->tf_v0 = retval;
+			tf->tf_v0 = retval;
 		}
 		tf->tf_a3 = 0;      /* signal no error */
 	}

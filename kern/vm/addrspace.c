@@ -163,6 +163,30 @@ struct pte* create_pte(vaddr_t faultaddress, struct addrspace *as)
 }
 
 
+void delete_pte(struct addrspace *as, vaddr_t addr) {
+	struct pte * mover = as->page_table;
+	struct pte *mover2 = mover;
+	int spl;
+	while(mover!=NULL) {
+		if(mover->vpn == (addr)) {
+			mover2->next = mover->next;
+			int tlb_idx = tlb_probe(mover->vpn, 0);
+			if(tlb_idx>0) {
+				spl = splhigh();
+
+				tlb_write(TLBHI_INVALID(tlb_idx), TLBLO_INVALID(), tlb_idx);
+				splx(spl);
+			}
+			free_upage(mover->ppn);
+
+			kfree(mover);
+			return;
+		}
+		mover2 = mover;
+		mover = mover->next;
+	}
+}
+
 /* Fault handling function called by trap code */
 int vm_fault(int faulttype, vaddr_t faultaddress) {
 	(void)faulttype;
@@ -188,7 +212,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 		//Create a new PTE
 		page = create_pte(faultaddress, as);
 		if(page == NULL) {
-			return EFAULT;
+			return ENOMEM;	//one of the mallocs failed in create_pte
 		}
 
 	}
@@ -262,6 +286,7 @@ vaddr_t alloc_kpages(unsigned npages) {
 			//return a physical address vaddr corresponding to "marker"
 			// kprintf("Allocating %d pages from %u\n",npages,freepage);
 			spinlock_release(&core_lock);
+			bzero((void*)(freepage),PAGE_SIZE);
 			return freepage;
 		}
 		
@@ -344,6 +369,8 @@ void free_upage(paddr_t addr) {
 
 
 
+
+
 /*
  * Return amount of memory (in bytes) used by allocated coremap pages.  If
  * there are ongoing allocations, this value could change after it is returned
@@ -391,6 +418,12 @@ vaddr_t trim_virtual(vaddr_t original) {
 
 
 void update_heap(struct addrspace *as, vaddr_t new_heap_start) {
+	//page align heap_start
+	if(new_heap_start%PAGE_SIZE!=0) {
+		int pages_needed = (new_heap_start/PAGE_SIZE)+1;
+		new_heap_start = pages_needed*PAGE_SIZE;
+	}
+
 	as->heap_region->start = new_heap_start;
 	as->heap_region->end = new_heap_start;
 }
@@ -500,6 +533,8 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 	newas->heap_region->start = old->heap_region->start;
 	newas->heap_region->end = old->heap_region->end;
 
+
+
 	// newas->page_table = kmalloc(sizeof(struct pte));
 	//copy ptes
 	struct pte * pte_old = old->page_table;
@@ -523,6 +558,9 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 		pte_new->state = PTE_IN_MEMORY;
 		//allocate new physical page for this pte
 		paddr_t new_p_page= alloc_upage();
+		if(new_p_page==(paddr_t)NULL) {
+			return ENOMEM;
+		}
 		pte_new->ppn = trim_physical(new_p_page);
 
 		//copy contents of old physical page to new physical page
@@ -585,7 +623,7 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 		 int readable, int writeable, int executable)
 {
 	//do we need to check if vaddr is page aligned? dumbvm does that
-
+	// kprintf("memsize:%d \n",memsize);
 	struct region *mover = as->a_regions;
 	if(as->a_regions==NULL) {
 		//first region
@@ -614,6 +652,7 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 			as->total_region_end = vaddr+memsize;
 		}			
 	}
+	
 	
 	update_heap(as, as->total_region_end);
 

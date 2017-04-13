@@ -43,7 +43,7 @@
  #include <spl.h>
 
 #include <spinlock.h>
-#define CUSTOM_STACK_SIZE 8*PAGE_SIZE //try experimenting with different sizes
+#define CUSTOM_STACK_SIZE 1024*PAGE_SIZE //try experimenting with different sizes
 
 #define PTE_ON_DISK 1
 #define PTE_IN_MEMORY 2     //for 3.2 we'll have all pages in MEMORY
@@ -121,6 +121,7 @@ vaddr_t alloc_kpages(unsigned npages);
 void free_kpages(vaddr_t addr);
 paddr_t alloc_upage(void);
 void free_upage(vaddr_t addr);
+void delete_pte(struct addrspace *as, paddr_t addr);
 
 /*
  * Return amount of memory (in bytes) used by allocated coremap pages.  If
