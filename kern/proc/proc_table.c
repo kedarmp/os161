@@ -78,7 +78,7 @@ struct proc* get_proc(pid_t pid)
 }
 void add_proc(struct proc * p) 
 {
-	if(plock!=NULL)
+	if(proc_count>0)
 	{
 		lock_acquire(plock);
 	}
