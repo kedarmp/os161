@@ -37,7 +37,6 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 		return -1;
 	}
 
-	lock_acquire(curproc->proc_lock);
 	P(child->sem);
 	//child called _exit
 	if(status != NULL) {    //collect exitcode. //See manpage for status!=null 
@@ -47,18 +46,17 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 	                int err_code = (child->exit_code);
 	          
 	                int err = copyout(&err_code, status, sizeof(int));
-	                if(err) {
-	                        *errptr = EFAULT;
-	                        recycle_pid(pid);//in any case, recycle the pid of the child, since its exited
-	                        //even if copying out failed(e.g. because of bad ptr, do we still have to cleanup the child)? 7792
-	                        if(child->p_numthreads == 0) 
-				{
-					proc_destroy(child);
-				}
-
-				lock_release(curproc->proc_lock);
-	                        return -1;
-	                        }
+	                if(err) 
+	                {
+                        *errptr = EFAULT;
+                        recycle_pid(pid);//in any case, recycle the pid of the child, since its exited
+                        //even if copying out failed(e.g. because of bad ptr, do we still have to cleanup the child)? 7792
+                        if(child->p_numthreads == 0) 
+						{
+							proc_destroy(child);
+						}
+                        return -1;
+                    }
 	         }
 	}      
 	*errptr = 0;
@@ -71,6 +69,5 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 //cleanup wont be performed. thats the only drawback
 		kprintf("Will leak.Child V'd.Child pnumthreads:%d\n",child->p_numthreads);
 	}
-	lock_release(curproc->proc_lock);
 	return pid;
 }
