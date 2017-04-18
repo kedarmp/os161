@@ -41,7 +41,7 @@
 #include<vfs.h>
 #include<stat.h>
 #include<bitmap.h>
-//#include <kern/vm.h>
+#include<uio.h>
 
 
 extern vaddr_t firstfree;
@@ -67,12 +67,12 @@ struct pte* create_pte(vaddr_t faultaddress, struct addrspace *as);
 uint32_t evict_page(uint32_t max);
 void swapout(int idx, paddr_t addr, vaddr_t faultaddress);
 struct bitmap *map;
+struct vnode *swap_file;
 
 void vm_bootstrap(void) {
 	//initialize bitmap
 
 	//Open swap file and see its size..?
-	struct vnode *swap_file;
 	char swapfile[] = "lhd0raw:";
 	int err = vfs_open(swapfile, O_RDWR, 0, &swap_file);
 	if(err) {
@@ -368,6 +368,7 @@ paddr_t alloc_upage(vaddr_t faultaddress) {
 			int idx = evict_page(total_pages);
 			paddr_t evicted_paddr = PAGE_SIZE*idx;
 			swapout(idx, evicted_paddr, faultaddress);
+			bzero((void*)(evicted_paddr + MIPS_KSEG0), PAGE_SIZE);
 			spinlock_release(&core_lock);	
 			return evicted_paddr;
 		}
@@ -417,9 +418,26 @@ void swapout(int idx, paddr_t addr, vaddr_t faultaddress) {
 	(void)offset;	
 
 	//copy to file
+	/* Dont know if this is right:
 
-	//mark the bitmap as used
+	struct uio u;
+        struct iovec iov;
+        enum uio_rw e = UIO_WRITE;
+        uio_uinit(&iov,&u,addr,PAGE_SIZE,offset,e);
+
+
+        //perform the write!
+        //int err=1;
+        int err = VOP_WRITE(swap_file,&u);
+        if(err!=0) {
+                lock_release(f_handle_name->lock);
+                *errptr = err;
+                return -1;
+        }
+*/
+
 	//copy the location to pte
+	
 
 }
 
