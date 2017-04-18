@@ -119,7 +119,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress);
 /* Allocate/free kernel heap pages (called by kmalloc/kfree) */
 vaddr_t alloc_kpages(unsigned npages);
 void free_kpages(vaddr_t addr);
-paddr_t alloc_upage(void);
+paddr_t alloc_upage(vaddr_t faultaddress);
 void free_upage(vaddr_t addr);
 void delete_pte(struct addrspace *as, paddr_t addr);
 

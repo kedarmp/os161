@@ -37,7 +37,10 @@
 #include <mips/tlb.h>
  #include <spl.h>
 
-
+#include<vnode.h>
+#include<vfs.h>
+#include<stat.h>
+#include<bitmap.h>
 //#include <kern/vm.h>
 
 
@@ -61,8 +64,26 @@ void update_heap(struct addrspace *as, vaddr_t new_heap_start);
 int check_valid_seg(vaddr_t faultaddress ,struct addrspace *as);
 struct pte* check_in_page_table(vaddr_t faultaddress,struct addrspace *as);
 struct pte* create_pte(vaddr_t faultaddress, struct addrspace *as);
+uint32_t evict_page(uint32_t max);
+void swapout(int idx, paddr_t addr, vaddr_t faultaddress);
+struct bitmap *map;
 
 void vm_bootstrap(void) {
+	//initialize bitmap
+
+	//Open swap file and see its size..?
+	struct vnode *swap_file;
+	char swapfile[] = "lhd0raw:";
+	int err = vfs_open(swapfile, O_RDWR, 0, &swap_file);
+	if(err) {
+		kprintf("Error opening swapfile:%d\n",err);
+		return;
+	}
+	struct stat swap_stats;
+	VOP_STAT(swap_file, &swap_stats);
+	kprintf("Size of swap file:%lld\n",swap_stats.st_size);
+	map = bitmap_create(swap_stats.st_size/PAGE_SIZE);
+	KASSERT(map != NULL);	//else swapping wont work
 
 }
 
@@ -126,7 +147,7 @@ struct pte* create_pte(vaddr_t faultaddress, struct addrspace *as)
 {
 	//Do we have to update stack pointer(stack->end in our case) 
 	
-	paddr_t new_p_page = alloc_upage();
+	paddr_t new_p_page = alloc_upage(faultaddress);
 
 	struct pte *mover = as->page_table;
 	if(mover==NULL) {
@@ -313,12 +334,15 @@ void free_kpages(vaddr_t addr) {
 	spinlock_release(&core_lock);
 }
 
-
+//return random number between 0 to (max-1)
+uint32_t evict_page(uint32_t max) {
+	return random()%max;
+}
 
 // ALloc user page:
 
 /* Allocate/free kernel heap pages (called by kmalloc/kfree) */
-paddr_t alloc_upage(void) {
+paddr_t alloc_upage(vaddr_t faultaddress) {
 
 		spinlock_acquire(&core_lock);	
 		struct core_entry* traverse_end = coremap;		
@@ -340,8 +364,12 @@ paddr_t alloc_upage(void) {
 		}
 		if(i==total_pages)
 		{
+			//choose page to evict
+			int idx = evict_page(total_pages);
+			paddr_t evicted_paddr = PAGE_SIZE*idx;
+			swapout(idx, evicted_paddr, faultaddress);
 			spinlock_release(&core_lock);	
-			return (paddr_t)NULL;
+			return evicted_paddr;
 		}
 		
 		bzero((void*)(free_p_page+MIPS_KSEG0), PAGE_SIZE);
@@ -367,8 +395,33 @@ void free_upage(paddr_t addr) {
 
 
 
+//swap out a page located  at addr and whose coremap entry is at index idx
+void swapout(int idx, paddr_t addr, vaddr_t faultaddress) {
+//	struct addrspace *owner_as = coremap[idx].as;
 
+	(void)idx;
+	(void)addr;
+	//flush TLB
+	int spl = splhigh();
+        int tlb_idx = tlb_probe(faultaddress & PAGE_FRAME, 0);
+        if(tlb_idx>0) {
+  		spl = splhigh();
+        	tlb_write(TLBHI_INVALID(tlb_idx), TLBLO_INVALID(), tlb_idx);
+        }
+	splx(spl);
+	
+	//find location in bitmap
+	unsigned int pos;
+	bitmap_alloc(map, &pos);	
+	off_t offset = pos * PAGE_SIZE;
+	(void)offset;	
 
+	//copy to file
+
+	//mark the bitmap as used
+	//copy the location to pte
+
+}
 
 
 /*
@@ -557,7 +610,7 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 		pte_new->vpn = pte_old->vpn;
 		pte_new->state = PTE_IN_MEMORY;
 		//allocate new physical page for this pte
-		paddr_t new_p_page= alloc_upage();
+		paddr_t new_p_page= alloc_upage(pte_new->vpn);
 		if(new_p_page==(paddr_t)NULL) {
 			return ENOMEM;
 		}

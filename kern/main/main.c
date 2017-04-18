@@ -129,7 +129,7 @@ boot(void)
 	kheap_nextgeneration();
 
 	/* Late phase of initialization. */
-	
+	vm_bootstrap();	
 	kprintf_bootstrap();
 	thread_start_cpus();
 	test161_bootstrap();
