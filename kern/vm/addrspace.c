@@ -285,8 +285,9 @@ vaddr_t alloc_kpages(unsigned npages) {
 			used_bytes += npages*PAGE_SIZE;
 			//return a physical address vaddr corresponding to "marker"
 			// kprintf("Allocating %d pages from %u\n",npages,freepage);
-			spinlock_release(&core_lock);
 			bzero((void*)(freepage),PAGE_SIZE);
+			spinlock_release(&core_lock);
+			
 			return freepage;
 		}
 		
@@ -331,7 +332,7 @@ paddr_t alloc_upage(void) {
 			e = traverse_end[i];
 			if(e.state == PAGE_FREE) {
 				free_p_page =  PAGE_SIZE*(i); //update physical address too
-				traverse_end[i].state = 30;	//can be swapped out in 3.3
+				traverse_end[i].state = PAGE_USER;	//can be swapped out in 3.3
 				traverse_end[i].chunk_size = 1;	//else its zero
 				used_bytes += PAGE_SIZE;
 				break;
@@ -344,8 +345,9 @@ paddr_t alloc_upage(void) {
 			return (paddr_t)NULL;
 		}
 		
-		spinlock_release(&core_lock);
 		bzero((void*)(free_p_page+MIPS_KSEG0), PAGE_SIZE);
+		spinlock_release(&core_lock);
+		
 		return (free_p_page);
 }
 
@@ -354,9 +356,9 @@ void free_upage(paddr_t addr) {
 	int index = (addr)/PAGE_SIZE;
 	struct core_entry e = coremap[index];
 	// kprintf("struct located. Chunk size:%d\n",e.chunk_size);
-	KASSERT(e.state == 30);
+	KASSERT(e.state == PAGE_USER);
 	KASSERT(e.chunk_size != 0);
-	if(e.state == 30 && e.chunk_size!=0) {	//later we shouldnt be freeing FIXED pages
+	if(e.state == PAGE_USER && e.chunk_size!=0) {	//later we shouldnt be freeing FIXED pages
 		//kprintf("Alloc_U_PAGES:Found \n");
 		used_bytes-= PAGE_SIZE;
 		coremap[index].state = PAGE_FREE;

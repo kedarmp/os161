@@ -236,7 +236,7 @@ void
 proc_bootstrap(void)
 
 {
-	
+	plock = NULL;	
 	kproc = proc_create("[kernel]");
 	if (kproc == NULL) {
 		panic("proc_create for kproc failed\n");

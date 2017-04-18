@@ -75,6 +75,7 @@ pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *err
 
 	//Running through the parent ftable and getting the number of open FDs
 	int i;
+	
 	for(i = 0;i<OPEN_MAX;i++)
 	{
 		if(parent_proc -> ftable[i]!= NULL) //&& parent_proc ->ftable[i]!=(struct fhandle*)0xdeadbeef) 
