@@ -6,6 +6,7 @@
 #include <thread.h>
 #include <fhandle.h>
 #include <sys_fork.h>
+#include <current.h>
 #include <syscall.h>
 #include <file_close.h>
 #include <proc_table.h>
@@ -44,8 +45,10 @@ pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *err
 //	kprintf("Forking..\n");
 	//copy stuff from parent
 	child -> proc_id = child_id;
-	child -> parent_proc_id = parent_proc -> proc_id;
+	child -> parent_proc_id = curproc -> proc_id;
 //	child -> p_numthreads = 1;
+
+	//kprintf("FORK - The childs id: %d , The childs parents id: %d , The parents id: %d \n",child->proc_id,child->parent_proc_id,parent_proc->proc_id);
 
 	
 

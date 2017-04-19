@@ -118,7 +118,8 @@ kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr)
 
 	kprintf("Curthread ID:%s\n",curthread->t_name);
 //	thread_exit();
-	sys_exit(sig, TYPE_RECEIVED_SIG);
+	panic("I AM NOT INTERESTED \n");
+	//sys_exit(sig, TYPE_RECEIVED_SIG);
 }
 
 /*

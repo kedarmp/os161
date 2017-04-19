@@ -13,16 +13,19 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 	if(options !=0)
 	{
 		*errptr = EINVAL;
+		kprintf("WAITPID LOOP 1 \n");
 		return -1;
 	}
 	if(pid<2 || pid >= MAX_PROC) {
 		*errptr = ESRCH;
+		kprintf("WAITPID LOOP 2 \n");
 		return -1;
 	}
 	struct proc *child = get_proc(pid);
 	if(child == NULL)
 	{
 		*errptr = ESRCH;
+		kprintf("WAITPID LOOP 3 \n");
 		return -1;	
 	}
 
@@ -31,17 +34,21 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 //does not make the kernel process the parent of the first user process(whose pid=2). In that sense,
 //the first user process(e.g. 's'[hell] or 'p' are the real 'init' processes!)
 //Maybe change the model later. Right now we dont care
-	if(curproc->proc_id!=1 && curproc->proc_id != child->parent_proc_id)
+	//if(curproc->proc_id!=1 && curproc->proc_id != child->parent_proc_id)
+	if(curproc->proc_id != child->parent_proc_id)
 	{
 		*errptr = ECHILD;
+		kprintf("WAITPID LOOP 4 \n");
 		return -1;
 	}
+
+	//kprintf("WAITPID The pid: %d , The curprocs pid: %d , The childs parents id: %d \n",pid,curproc->proc_id,child->parent_proc_id);
 
 	P(child->sem);
 	//child called _exit
 	if(status != NULL) {    //collect exitcode. //See manpage for status!=null 
-        	if(WIFEXITED(child->exit_code) || WIFSIGNALED(child->exit_code))
-	        {
+        	// if(WIFEXITED(child->exit_code) || WIFSIGNALED(child->exit_code))
+	        // {
 	                //NOTE: The WEXITSTATUS,WTERMSIG etc macros are supposed to be called by the user. So, there is no  need to decode the exitcode back in the kernel space itself
 	                int err_code = (child->exit_code);
 	          
@@ -49,15 +56,14 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 	                if(err) 
 	                {
                         *errptr = EFAULT;
+                        proc_destroy(child);
                         recycle_pid(pid);//in any case, recycle the pid of the child, since its exited
                         //even if copying out failed(e.g. because of bad ptr, do we still have to cleanup the child)? 7792
-                        if(child->p_numthreads == 0) 
-						{
-							proc_destroy(child);
-						}
+                        kprintf("WAITPID LOOP 5 \n");
                         return -1;
                     }
-	         }
+                    //kprintf("WAITPIUD - The error status :%d \n",err_code);
+	         // }
 	}      
 	*errptr = 0;
 	if(child->p_numthreads == 0) {

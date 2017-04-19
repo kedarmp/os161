@@ -189,14 +189,18 @@ dowait(pid_t pid)
 		// If the child crashes or waitpid returns -1, we don't know how many errors
 		// resulted (if any), but it's an error if we can't tell.
 		if (waitpid(pid, &status, 0) < 0) {
+			
 			warn("waitpid(%d)", pid);
+			tprintf("FAILURE AT WAITPID CHECK");
 			failures += 1;
 		}
 		else if (WIFSIGNALED(status)) {
 			warnx("pid %d: signal %d", pid, WTERMSIG(status));
+			tprintf("FAILURE AT WIFSIGNALED");
 			failures += 1;
 		}
 		else if (WEXITSTATUS(status) > 0) {
+			tprintf("FAILURE AT WEXITSTATUS");
 			failures += WEXITSTATUS(status);
 		}
 	}
@@ -219,7 +223,7 @@ dotest(void)
 		grind();
 		t = trace();
 		if (t == right[i]) {
-			lsay("\nStage %u #%u done: %d\n", i, me, trace());
+			//lsay("\nStage %u #%u done: %d\n", i, me, trace());
 		}
 		else {
 			lsay("Stage %u #%u FAILED: got %d, expected %d\n",
@@ -227,7 +231,7 @@ dotest(void)
 			success(TEST161_FAIL, SECRET, "/testbin/bigfork");
 			failures++;
 		}
-		TEST161_LPROGRESS(0);
+		//TEST161_LPROGRESS(0);
 	}
 
 	for (i=BRANCHES; i-- > 0; ) {

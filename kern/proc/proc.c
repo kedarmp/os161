@@ -110,6 +110,8 @@ proc_create(const char *name)
 		return NULL;
 	}
 
+	proc->parent_proc_id = 1;
+
 	return proc;
 }
 
