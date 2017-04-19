@@ -16,5 +16,6 @@ void add_proc(struct proc * p);
 
 //Number of processes
 extern volatile int proc_count;
+void proc_initialize(void);
 struct lock * plock;
 

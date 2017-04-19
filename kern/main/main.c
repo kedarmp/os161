@@ -113,6 +113,7 @@ boot(void)
 
 	proc_bootstrap();
 	
+	
 	thread_bootstrap();
 	hardclock_bootstrap();
 	vfs_bootstrap();
@@ -146,6 +147,7 @@ boot(void)
 	COMPILE_ASSERT(sizeof(*(userptr_t)0) == sizeof(char));
 
 	//Initialize the proc table
+
 }
 
 /*

@@ -9,12 +9,15 @@
 #include <syscall.h>
 #include <file_close.h>
 #include <proc_table.h>
+#include<current.h>
 
 
 extern void *memcpy(void *dest, const void *src, size_t len);
 
 pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *errptr)
 {
+
+
 	//Check if kernel thread isnt calling fork.22880
 	if(parent_proc -> proc_id < 2)
 	{
@@ -23,8 +26,8 @@ pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *err
 	}
 
 	//Checking the number of processes
-	pid_t child_id = create_pid();
-	if(child_id == -1) {
+	
+	if(proc_count == MAX_PROC) {
 		*errptr = ENOMEM;	//technically should be ENPROC.But returning ENOMEM is what passes the forkbomb test!
 		return -1;	
 	}
@@ -32,19 +35,17 @@ pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *err
 	//Wrapper funciton that is used to call proc_create
 	struct proc * child = call_proc_create("Userprocess");
 	if(child == NULL) {
-		recycle_pid(child_id);
 		*errptr = ENOMEM;
 		return -1;
 	}
+	pid_t child_id = child->proc_id;
 
 	for(int i=0;i<OPEN_MAX;i++) {
  		child->ftable[i] = NULL;
  	}
 	
-//	kprintf("Forking..\n");
-	//copy stuff from parent
-	child -> proc_id = child_id;
-	child -> parent_proc_id = parent_proc -> proc_id;
+ 	KASSERT(parent_proc->proc_id == curproc->proc_id);
+	child -> parent_proc_id = curproc -> proc_id;
 //	child -> p_numthreads = 1;
 
 	
@@ -108,7 +109,7 @@ pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *err
   //      kheap_printused();
 	
 
-
+	// kprintf("Created:%d\n",child_id);
 	*errptr =0;
 	return child_id;
 }

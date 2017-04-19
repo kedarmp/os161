@@ -8,6 +8,16 @@ struct proc* proc_table[MAX_PROC];
 volatile int proc_count = 0;
 struct lock *plock;
 
+
+void proc_initialize(void)
+{
+    //Initialize the proc table
+    for(int i = 0;i<MAX_PROC;i++)
+    {
+        proc_table[i] = NULL;
+    }
+}
+
 pid_t create_pid(void)
 {
 	if(plock == NULL)
@@ -40,7 +50,8 @@ pid_t create_pid(void)
 
 void recycle_pid(pid_t pid)
 {
-	if(plock!=NULL)
+    // kprintf("recycle:%d\n",pid);
+	if(proc_count>0)
 	{
 		lock_acquire(plock);
 	}
@@ -49,7 +60,7 @@ void recycle_pid(pid_t pid)
 		proc_table[pid] = NULL;
 		proc_count--;
 	}
-	if(plock!=NULL)
+	if(proc_count>0)
 	{
 		lock_release(plock);
 	}
@@ -57,25 +68,10 @@ void recycle_pid(pid_t pid)
 
 struct proc* get_proc(pid_t pid)
 {
-	if(plock!=NULL)
-	{
-		lock_acquire(plock);
-	}
-	
-	if(pid < MAX_PROC && pid >= 1)
-	{
-		if(plock!=NULL)
-		{
-			lock_release(plock);
-		}
-		return proc_table[pid];
-	}
-	if(plock!=NULL)
-	{
-		lock_release(plock);
-	}
-	return NULL;
+	return proc_table[pid];
 }
+
+
 void add_proc(struct proc * p) 
 {
 	if(proc_count>0)

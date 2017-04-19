@@ -53,12 +53,12 @@
  #include <synch.h>
  #include <vfs.h>
  #include <fhandle.h>
+ #include <proc_table.h>
 
 /*
  * The process for the kernel; this holds all the kernel-only threads.
  */
 struct proc *kproc;
-
 
 /*
  * Create a proc structure.
@@ -92,11 +92,14 @@ proc_create(const char *name)
 	proc->proc_id = create_pid();
 	if(proc->proc_id == -1) {
 		kfree(proc);
+		recycle_pid(proc->proc_id);
 		return NULL;
 	}
+	proc->parent_proc_id = 1;	//make kernel process the parent of all processes by default
 	proc->proc_lock = lock_create("perproclock");
 	if(proc->proc_lock == NULL) {
 		kfree(proc);
+		recycle_pid(proc->proc_id);
 		return NULL;
 	}
 
@@ -237,11 +240,14 @@ proc_bootstrap(void)
 
 {
 	plock = NULL;	
+	proc_initialize();
 	kproc = proc_create("[kernel]");
 	if (kproc == NULL) {
 		panic("proc_create for kproc failed\n");
 	}
 }
+
+
 
 /*
  * Create a fresh proc for use by runprogram.

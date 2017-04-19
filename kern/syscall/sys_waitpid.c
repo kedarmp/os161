@@ -22,6 +22,7 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 	struct proc *child = get_proc(pid);
 	if(child == NULL)
 	{
+		//kprintf("NULL_get_proc:%d\n",pid);
 		*errptr = ESRCH;
 		return -1;	
 	}
@@ -31,11 +32,14 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 //does not make the kernel process the parent of the first user process(whose pid=2). In that sense,
 //the first user process(e.g. 's'[hell] or 'p' are the real 'init' processes!)
 //Maybe change the model later. Right now we dont care
-	if(curproc->proc_id!=1 && curproc->proc_id != child->parent_proc_id)
+	if(curproc->proc_id != child->parent_proc_id)
 	{
+		//kprintf("WRONG_PARENT:%d\n",pid);
 		*errptr = ECHILD;
 		return -1;
 	}
+	// kprintf("WAITPID The pid: %d , The curprocs pid: %d , The childs parents id: %d \n",pid,curproc->proc_id,child->parent_proc_id);
+
 
 	lock_acquire(curproc->proc_lock);
 	P(child->sem);
