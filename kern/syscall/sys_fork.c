@@ -9,7 +9,7 @@
 #include <syscall.h>
 #include <file_close.h>
 #include <proc_table.h>
-
+#include<current.h>
 
 extern void *memcpy(void *dest, const void *src, size_t len);
 
@@ -22,10 +22,12 @@ pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *err
 		return -1;
 	}
 
+	lock_acquire(curproc->proc_lock);
 	//Checking the number of processes
 	pid_t child_id = create_pid();
 	if(child_id == -1) {
 		*errptr = ENOMEM;	//technically should be ENPROC.But returning ENOMEM is what passes the forkbomb test!
+		lock_release(curproc->proc_lock);
 		return -1;	
 	}
 
@@ -34,6 +36,7 @@ pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *err
 	if(child == NULL) {
 		recycle_pid(child_id);
 		*errptr = ENOMEM;
+		lock_release(curproc->proc_lock);
 		return -1;
 	}
 
@@ -56,6 +59,7 @@ pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *err
 		proc_destroy(child);
 		recycle_pid(child_id);
 		*errptr = ENOMEM;
+		lock_release(curproc->proc_lock);
 		return -1;
 	}
 	child -> p_addrspace = child_addrspace;
@@ -68,6 +72,7 @@ pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *err
 		proc_destroy(child);
 		recycle_pid(child_id);
 		*errptr = ENOMEM;
+		lock_release(curproc->proc_lock);
 		return -1;
 	}
 	memcpy(child_tf, old_trapframe, sizeof(struct trapframe));
@@ -102,6 +107,7 @@ pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *err
 		proc_destroy(child);
 		recycle_pid(child_id);
 		*errptr =err;
+		lock_release(curproc->proc_lock);
 		return -1;
 	}
   //      kheap_printused();
@@ -109,5 +115,6 @@ pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *err
 
 
 	*errptr =0;
+		lock_release(curproc->proc_lock);
 	return child_id;
 }

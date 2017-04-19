@@ -36,8 +36,8 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 		*errptr = ECHILD;
 		return -1;
 	}
-
-	lock_acquire(curproc->proc_lock);
+	
+	kprintf("WAITPID The pid: %d , The curprocs pid: %d , The childs parents id: %d \n",pid,curproc->proc_id,child->parent_proc_id);
 	P(child->sem);
 	//child called _exit
 	if(status != NULL) {    //collect exitcode. //See manpage for status!=null 
@@ -56,7 +56,6 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 					proc_destroy(child);
 				}
 
-				lock_release(curproc->proc_lock);
 	                        return -1;
 	                        }
 	         }
@@ -71,6 +70,5 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 //cleanup wont be performed. thats the only drawback
 		kprintf("Will leak.Child V'd.Child pnumthreads:%d\n",child->p_numthreads);
 	}
-	lock_release(curproc->proc_lock);
 	return pid;
 }
