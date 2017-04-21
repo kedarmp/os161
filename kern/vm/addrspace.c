@@ -184,51 +184,6 @@ struct pte* create_pte(vaddr_t faultaddress, struct addrspace *as)
 	return new_pte;
 }
 
-/*
-struct pte* create_pte(vaddr_t faultaddress, struct addrspace *as)
-{
-	//Do we have to update stack pointer(stack->end in our case) 
-	
-
-	struct pte *mover = as->page_table;
-	if(mover==NULL) {
-		//first region
-		as->page_table = kmalloc(sizeof(struct pte));
-		if(as->page_table == NULL) {
-			//UNDO EVERYTHING DONE BEFORE -> ALL KMALLOCS
-			return NULL;
-		}
-		as->page_table->vpn = trim_virtual(faultaddress);
-		as->page_table->next = NULL;
-		as->page_table->state = PTE_IN_MEMORY;
-		paddr_t new_p_page = alloc_upage(faultaddress, as->page_table);
-		as->page_table->ppn = trim_physical(new_p_page);
-		as->page_table->disk_offset = -1;
-		return as->page_table;
-	}
-	else {
-		while(mover->next!=NULL) {
-			mover = mover->next;
-
-			}
-		struct pte *new_pte = kmalloc(sizeof(struct pte));
-		if(new_pte == NULL) {
-			//undo all kmallocs above
-			return NULL;
-		}
-		new_pte->vpn = trim_virtual(faultaddress);
-		new_pte->next = NULL;
-		new_pte->state = PTE_IN_MEMORY;
-		paddr_t new_p_page = alloc_upage(faultaddress, new_pte);
-		new_pte->ppn = trim_physical(new_p_page);
-		
-		new_pte->disk_offset = -1;
-		mover->next = new_pte;
-		return new_pte;			
-	}
-	return NULL;
-}*/
-
 void delete_pte(struct addrspace *as, vaddr_t addr) {
 	struct pte * mover = as->page_table;
 	struct pte *mover2 = mover;
@@ -415,7 +370,7 @@ int evict_page(uint32_t max) {
 paddr_t alloc_upage(vaddr_t faultaddress, struct pte *page_pte) {
 
 		KASSERT(page_pte > (struct pte*)0x80000000);
-		spinlock_acquire(&core_lock);	
+		spinlock_acquire(&core_lock);
 		struct core_entry* traverse_end = coremap;		
 		struct core_entry e;
 		
@@ -440,6 +395,7 @@ paddr_t alloc_upage(vaddr_t faultaddress, struct pte *page_pte) {
 			//choose page to evict
 			int idx = evict_page(total_pages);
 			paddr_t evicted_paddr = PAGE_SIZE*idx;
+
 			spinlock_release(&core_lock);	
 			swapout(idx, evicted_paddr, faultaddress);
 			bzero((void*)(evicted_paddr + MIPS_KSEG0), PAGE_SIZE);
@@ -497,6 +453,7 @@ void swapout(int idx, paddr_t addr, vaddr_t faultaddress) {
 	
 	unsigned int pos=0;
 	struct pte* page_pte = coremap[idx].pte_ptr;
+	
 	KASSERT(page_pte->ppn == addr);
 	off_t offset = page_pte->disk_offset;
 	if(page_pte->disk_offset == -1) {
@@ -505,6 +462,8 @@ void swapout(int idx, paddr_t addr, vaddr_t faultaddress) {
 		offset =  pos * PAGE_SIZE;
 	}
 	//else we simply write back to the same offset that this page was previously written to	
+	page_pte->state = PTE_ON_DISK;
+	page_pte->disk_offset = offset;
 	
 	//copy to file
 	int err = write_to_disk(addr, offset);
@@ -513,8 +472,7 @@ void swapout(int idx, paddr_t addr, vaddr_t faultaddress) {
 	}
 
 	//copy the location to pte of of this page
-	page_pte->state = PTE_ON_DISK;
-	page_pte->disk_offset = offset;
+	
 	//The PPN inside this page_pte now is useless (since the page is on disk)
 	
 	//Free this page!
@@ -781,8 +739,16 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 		}
 		pte_new->ppn = trim_physical(new_p_page);
 
+		if(pte_old->state == PTE_IN_MEMORY) {
 		//copy contents of old physical page to new physical page
-		memmove((void *)(MIPS_KSEG0 + pte_new->ppn),(const void*)(MIPS_KSEG0 + pte_old->ppn),PAGE_SIZE);
+			memmove((void *)(MIPS_KSEG0 + pte_new->ppn),(const void*)(MIPS_KSEG0 + pte_old->ppn),PAGE_SIZE);
+		} else {
+			//VOP READ
+			int err = read_to_disk(new_p_page, pte_old->disk_offset);
+			if(err) {
+				panic("as_copy: Couldn't read from disk!");
+			}
+		}
 	
 		pte_old = pte_old->next;
 		mover = pte_new;
