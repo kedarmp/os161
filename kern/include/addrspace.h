@@ -32,9 +32,14 @@
 #define PAGE_FIXED 1
 #define PAGE_FREE 2
 #define PAGE_USER 3
+#define PAGE_SWAPPING 4 
 /*
  * Address space structure and operations.
  */
+
+//will be followed by swapin basically means that the lock for this pte wont be release after a swapout (see as copy)
+ #define WILL_BE_FOLLOWED_BY_SWAPIN 1
+ #define WILL_NOT_BE_FOLLOWED_BY_SWAPIN 2
 
 
 #include <vm.h>
@@ -80,6 +85,7 @@ extern struct vnode *swap_file;
     int state;
     off_t disk_offset;
     struct pte *next;
+    struct lock* pte_lock;
  };
 
 struct core_entry {

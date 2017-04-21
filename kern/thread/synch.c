@@ -188,10 +188,6 @@ void
 lock_acquire(struct lock *lock)
 {
 
-	spinlock_acquire(&lock->lock_spinlock);
-	HANGMAN_WAIT(&curthread->t_hangman, &lock->lk_hangman);
-
-	spinlock_release(&lock->lock_spinlock);
 	KASSERT(lock != NULL);
 	KASSERT(curthread->t_in_interrupt == false);
 	//added on 2/7: if we already have a lock, no need to do anything
@@ -214,10 +210,7 @@ lock_acquire(struct lock *lock)
 
 
 	/* Call this (atomically) once the lock is acquired */
-	
-	spinlock_acquire(&lock->lock_spinlock);
-	HANGMAN_ACQUIRE(&curthread->t_hangman, &lock->lk_hangman);
-	spinlock_release(&lock->lock_spinlock);
+
 }
 
 void
