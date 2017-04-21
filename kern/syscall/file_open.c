@@ -43,6 +43,7 @@ int sys_open(const_userptr_t filename, int flags,int *errptr) {
 		handle->open_mode = flags;
 		if(flags == (O_WRONLY|O_APPEND) || flags == (O_RDWR|O_APPEND)) {
 			//get size of file
+			//panic("UNEXPECTED SHIT MSG");
 			struct stat file_info;
 			err = VOP_STAT(handle->file, &file_info);
 			if(err)

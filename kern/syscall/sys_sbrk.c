@@ -4,7 +4,8 @@
 
 void * sys_sbrk(intptr_t amount,int *err)
 {
-	lock_acquire(curproc->proc_lock);
+	// lock_acquire(curproc->proc_lock);
+	// kprintf("I am:%d, My parent:%d:\n",curproc->proc_id, curproc->parent_proc_id);
 	struct addrspace *as = proc_getas();
 	
 	// kprintf("heap_start:%d \n",as->heap_region->start);
@@ -13,19 +14,19 @@ void * sys_sbrk(intptr_t amount,int *err)
 	if(as == NULL)
 	{
 		*err = EFAULT;
-		lock_release(curproc->proc_lock);
+		// lock_release(curproc->proc_lock);
 		return (NULL);
 	}
 	if(amount == 0)
 	{
 		*err = 0;
-		lock_release(curproc->proc_lock);
+		// lock_release(curproc->proc_lock);
 		return ((void *)as->heap_region->end);
 	}
 	if(amount % PAGE_SIZE != 0)
 	{
 		*err = EINVAL;
-		lock_release(curproc->proc_lock);
+		// lock_release(curproc->proc_lock);
 		return NULL;
 	}
 	//-1073741824
@@ -37,7 +38,7 @@ void * sys_sbrk(intptr_t amount,int *err)
 		if((int)as->heap_region->end + amount < (int)as->heap_region->start)
 		{
 			*err = EINVAL;
-			lock_release(curproc->proc_lock);
+			// lock_release(curproc->proc_lock);
 			return NULL;
 		}
 		// else if(amount == -107 374 1824) {
@@ -61,7 +62,7 @@ void * sys_sbrk(intptr_t amount,int *err)
 			}
 
 			*err = 0;
-			lock_release(curproc->proc_lock);
+			// lock_release(curproc->proc_lock);
 			return ((void *)heap_ret);
 		}
 	}
@@ -70,7 +71,7 @@ void * sys_sbrk(intptr_t amount,int *err)
 		if(as->heap_region->end + amount >= as->stack_region->start)
 		{
 			*err = ENOMEM;
-			lock_release(curproc->proc_lock);
+			// lock_release(curproc->proc_lock);
 			return NULL;
 		}
 		else
@@ -78,10 +79,10 @@ void * sys_sbrk(intptr_t amount,int *err)
 			vaddr_t heap_ret = as->heap_region->end;
 			as->heap_region->end += amount;
 			*err = 0;
-			lock_release(curproc->proc_lock);
+			// lock_release(curproc->proc_lock);
 			return ((void *)heap_ret);
 		}
 	}
-	lock_release(curproc->proc_lock);
+	// lock_release(curproc->proc_lock);
 	return NULL;
 }

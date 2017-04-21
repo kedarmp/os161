@@ -37,8 +37,11 @@
 #include <mips/tlb.h>
  #include <spl.h>
 
-
-//#include <kern/vm.h>
+#include<vnode.h>
+#include<vfs.h>
+#include<stat.h>
+#include<bitmap.h>
+#include<uio.h>
 
 
 extern vaddr_t firstfree;
@@ -62,7 +65,34 @@ int check_valid_seg(vaddr_t faultaddress ,struct addrspace *as);
 struct pte* check_in_page_table(vaddr_t faultaddress,struct addrspace *as);
 struct pte* create_pte(vaddr_t faultaddress, struct addrspace *as);
 
+int evict_page(uint32_t max);
+void swapout(int idx, paddr_t addr, vaddr_t faultaddress);
+void swapin(paddr_t free_page, struct pte * page_pte);
+
+struct bitmap *map;
+struct vnode *swap_file;
+int write_to_disk(paddr_t content, off_t disk_offset); 
+int read_to_disk(paddr_t targetaddr, off_t disk_offset);
+
+int SWAP_ENABLED;
+
 void vm_bootstrap(void) {
+	//initialize bitmap
+
+	SWAP_ENABLED = 0;
+	//Try to open swap file and see its size..?
+	char swapfile[] = "lhd0raw:";
+	int err = vfs_open(swapfile, O_RDWR, 0, &swap_file);
+	if(err) {
+		kprintf("Error opening swapfile:%d\n",err);
+		return;
+	}
+	SWAP_ENABLED = 1;
+	struct stat swap_stats;
+	VOP_STAT(swap_file, &swap_stats);
+	kprintf("Size of swap file:%lld\n",swap_stats.st_size);
+	map = bitmap_create(swap_stats.st_size/PAGE_SIZE);
+	KASSERT(map != NULL);	//else swapping wont work
 
 }
 
@@ -126,7 +156,39 @@ struct pte* create_pte(vaddr_t faultaddress, struct addrspace *as)
 {
 	//Do we have to update stack pointer(stack->end in our case) 
 	
-	paddr_t new_p_page = alloc_upage();
+	struct pte *new_pte = kmalloc(sizeof(struct pte));
+	if(new_pte == NULL) {
+		return NULL;
+	}
+//	kprintf("create:%p\n",new_pte);
+	paddr_t new_p_page = alloc_upage(faultaddress, new_pte);
+	KASSERT(new_p_page != (paddr_t)NULL);
+	new_pte->vpn = trim_virtual(faultaddress);
+	new_pte->ppn = trim_physical(new_p_page);
+	new_pte->next = NULL;
+	new_pte->state = PTE_IN_MEMORY;
+	new_pte->disk_offset = -1;
+
+	struct pte *mover = as->page_table;
+	if(mover==NULL) {
+		//first region
+		as->page_table = new_pte; 
+	}
+	else {
+		while(mover->next!=NULL) {
+			mover = mover->next;
+
+			}
+		mover->next = new_pte;
+	}
+	return new_pte;
+}
+
+/*
+struct pte* create_pte(vaddr_t faultaddress, struct addrspace *as)
+{
+	//Do we have to update stack pointer(stack->end in our case) 
+	
 
 	struct pte *mover = as->page_table;
 	if(mover==NULL) {
@@ -137,9 +199,11 @@ struct pte* create_pte(vaddr_t faultaddress, struct addrspace *as)
 			return NULL;
 		}
 		as->page_table->vpn = trim_virtual(faultaddress);
-		as->page_table->ppn = trim_physical(new_p_page);
 		as->page_table->next = NULL;
 		as->page_table->state = PTE_IN_MEMORY;
+		paddr_t new_p_page = alloc_upage(faultaddress, as->page_table);
+		as->page_table->ppn = trim_physical(new_p_page);
+		as->page_table->disk_offset = -1;
 		return as->page_table;
 	}
 	else {
@@ -153,15 +217,17 @@ struct pte* create_pte(vaddr_t faultaddress, struct addrspace *as)
 			return NULL;
 		}
 		new_pte->vpn = trim_virtual(faultaddress);
-		new_pte->ppn = trim_physical(new_p_page);
 		new_pte->next = NULL;
 		new_pte->state = PTE_IN_MEMORY;
+		paddr_t new_p_page = alloc_upage(faultaddress, new_pte);
+		new_pte->ppn = trim_physical(new_p_page);
+		
+		new_pte->disk_offset = -1;
 		mover->next = new_pte;
 		return new_pte;			
 	}
 	return NULL;
-}
-
+}*/
 
 void delete_pte(struct addrspace *as, vaddr_t addr) {
 	struct pte * mover = as->page_table;
@@ -217,19 +283,21 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 
 	}
 	//check if a physical page has been allocated, if not, allocate it
-	KASSERT(page->state == PTE_IN_MEMORY);
-	if(page->state == PTE_IN_MEMORY)
-	{
+	if(page->state == PTE_IN_MEMORY) {
 		//UPDATE TLB
 		spl = splhigh();
 		tlb_random(page->vpn, (page->ppn) | TLBLO_DIRTY | TLBLO_VALID);
 		splx(spl);
 
 	}
-	// else
-	// {
-	// 	//SWAPPING 
-	// }
+	else if(page->state == PTE_ON_DISK){
+	 	//swap in the page 
+		paddr_t free_page = alloc_upage(faultaddress, page);
+		swapin(free_page, page);
+
+	} else {
+		panic("Invalid page state");
+	}
 	return 0;
 }
 
@@ -268,8 +336,25 @@ vaddr_t alloc_kpages(unsigned npages) {
 		}
 		if(i==total_pages)
 		{
+			if(SWAP_ENABLED == 1) {
+			//choose page to evict
+			int idx = evict_page(total_pages);
+			paddr_t evicted_paddr = PAGE_SIZE*idx;
+			spinlock_release(&core_lock);	
+			swapout(idx, evicted_paddr,(vaddr_t)NULL);
+			bzero((void*)(evicted_paddr + MIPS_KSEG0), PAGE_SIZE);
+//			spinlock_release(&core_lock);	
+			coremap[idx].state = PAGE_FIXED;
+                        coremap[idx].chunk_size = 1;
+                        coremap[idx].pte_ptr = NULL;
+
+			return (vaddr_t)(MIPS_KSEG0 + evicted_paddr); 
+			}
+			else {
 			spinlock_release(&core_lock);	
 			return (vaddr_t)NULL;
+			
+			}
 		}
 			
 		if(found == npages) {	//found "npages" free pages starting at traverse
@@ -279,6 +364,7 @@ vaddr_t alloc_kpages(unsigned npages) {
 			
 			for(unsigned j=0; j<npages; j++) {
 				marker[j].state = PAGE_FIXED;
+				marker[j].pte_ptr = NULL;	//No PTE for kernel page
 				if(j==0)
 					marker[j].chunk_size = npages;	//else its zero
 			}
@@ -287,7 +373,6 @@ vaddr_t alloc_kpages(unsigned npages) {
 			// kprintf("Allocating %d pages from %u\n",npages,freepage);
 			bzero((void*)(freepage),PAGE_SIZE);
 			spinlock_release(&core_lock);
-			
 			return freepage;
 		}
 		
@@ -309,18 +394,27 @@ void free_kpages(vaddr_t addr) {
 		for(int i=0;i<e.chunk_size;i++) {
 			coremap[index+i].state = PAGE_FREE;
 			coremap[index+i].chunk_size = 0;
+			coremap[index].pte_ptr = NULL;
 		}	
 	}
 	spinlock_release(&core_lock);
 }
 
-
+//return random number between 0 to (max-1)
+int evict_page(uint32_t max) {
+	int random_idx = random()%max;
+	while(coremap[random_idx].state == PAGE_FIXED) {
+		random_idx = random()%max;
+	}
+	return random_idx;
+}
 
 // ALloc user page:
 
 /* Allocate/free kernel heap pages (called by kmalloc/kfree) */
-paddr_t alloc_upage(void) {
+paddr_t alloc_upage(vaddr_t faultaddress, struct pte *page_pte) {
 
+		KASSERT(page_pte > (struct pte*)0x80000000);
 		spinlock_acquire(&core_lock);	
 		struct core_entry* traverse_end = coremap;		
 		struct core_entry e;
@@ -334,6 +428,7 @@ paddr_t alloc_upage(void) {
 				free_p_page =  PAGE_SIZE*(i); //update physical address too
 				traverse_end[i].state = PAGE_USER;	//can be swapped out in 3.3
 				traverse_end[i].chunk_size = 1;	//else its zero
+				traverse_end[i].pte_ptr = page_pte;
 				used_bytes += PAGE_SIZE;
 				break;
 			}
@@ -341,13 +436,28 @@ paddr_t alloc_upage(void) {
 		}
 		if(i==total_pages)
 		{
+			if(SWAP_ENABLED == 1) {
+			//choose page to evict
+			int idx = evict_page(total_pages);
+			paddr_t evicted_paddr = PAGE_SIZE*idx;
+			spinlock_release(&core_lock);	
+			swapout(idx, evicted_paddr, faultaddress);
+			bzero((void*)(evicted_paddr + MIPS_KSEG0), PAGE_SIZE);
+			coremap[idx].state = PAGE_USER;
+			coremap[idx].chunk_size = 1;
+			coremap[idx].pte_ptr = page_pte;
+			
+			//spinlock_release(&core_lock);	
+			return evicted_paddr;
+			}
+			else {
 			spinlock_release(&core_lock);	
 			return (paddr_t)NULL;
+			}
 		}
 		
 		bzero((void*)(free_p_page+MIPS_KSEG0), PAGE_SIZE);
 		spinlock_release(&core_lock);
-		
 		return (free_p_page);
 }
 
@@ -363,14 +473,117 @@ void free_upage(paddr_t addr) {
 		used_bytes-= PAGE_SIZE;
 		coremap[index].state = PAGE_FREE;
 		coremap[index].chunk_size = 0;
+		coremap[index].pte_ptr = NULL;
 	}
 	spinlock_release(&core_lock);
 }
 
 
 
+//Clear the TLB, Swap out a page located  at addr and whose coremap entry is at index idx
+void swapout(int idx, paddr_t addr, vaddr_t faultaddress) {
+//	kprintf("swapout called");
+	KASSERT((unsigned)idx*PAGE_SIZE == addr);
+	if(faultaddress != (vaddr_t)NULL) {	//clear TLB only if alloc_upages called swapout
+		//flush TLB
+		int spl = splhigh();
+       		 int tlb_idx = tlb_probe(faultaddress & PAGE_FRAME, 0);
+	        if(tlb_idx>0) {
+  			spl = splhigh();
+        		tlb_write(TLBHI_INVALID(tlb_idx), TLBLO_INVALID(), tlb_idx);
+        	}
+		splx(spl);
+	}
+	
+	unsigned int pos=0;
+	struct pte* page_pte = coremap[idx].pte_ptr;
+	KASSERT(page_pte->ppn == addr);
+	off_t offset = page_pte->disk_offset;
+	if(page_pte->disk_offset == -1) {
+		//find location in bitmap
+		bitmap_alloc(map, &pos);
+		offset =  pos * PAGE_SIZE;
+	}
+	//else we simply write back to the same offset that this page was previously written to	
+	
+	//copy to file
+	int err = write_to_disk(addr, offset);
+	if(err) {
+		panic("swapout: Couldn't write to disk!");
+	}
 
+	//copy the location to pte of of this page
+	page_pte->state = PTE_ON_DISK;
+	page_pte->disk_offset = offset;
+	//The PPN inside this page_pte now is useless (since the page is on disk)
+	
+	//Free this page!
+//	free_upage(addr);
+	
 
+}
+
+//Reads a page in from the offset pointed to in page_pte into paddr: free_page and updates the PTE
+//Also loads the TLB
+void swapin(paddr_t free_page, struct pte * page_pte) {
+
+//	kprintf("swapin called");
+	//copy from swap file
+	int err = read_to_disk(free_page, page_pte->disk_offset);
+	if(err) {
+		panic("swapin: Couldn't read from  disk!");
+	}
+	
+	
+	page_pte->state = PTE_IN_MEMORY;
+	page_pte->ppn = free_page;
+	
+	//update coremap
+	spinlock_acquire(&core_lock);
+	int coremap_idx = free_page/PAGE_SIZE;
+	struct core_entry e;
+	e.state = PAGE_USER;
+	e.chunk_size = 1;
+	e.pte_ptr = page_pte;
+	coremap[coremap_idx] = e;
+	spinlock_release(&core_lock);
+
+	//Load the TLB
+	 int  spl = splhigh();
+         tlb_random(page_pte->vpn, (page_pte->ppn) | TLBLO_DIRTY | TLBLO_VALID);
+         splx(spl);		
+
+}
+
+int write_to_disk(paddr_t content, off_t disk_offset) {
+	struct uio u;
+        struct iovec iov;
+        uio_kinit(&iov,&u,(void*)PADDR_TO_KVADDR(content),PAGE_SIZE,disk_offset,UIO_WRITE);
+        //perform the write!
+        int err = VOP_WRITE(swap_file,&u);
+        if(err!=0) {
+                kprintf("Error writing:%d\n",err);
+		return err;
+        } else {
+               // kprintf("Wrote successfully\n");
+        }
+	return 0;	
+}
+
+int read_to_disk(paddr_t targetaddr, off_t disk_offset) {
+	struct uio u;
+        struct iovec iov;
+        uio_kinit(&iov,&u,(void*)PADDR_TO_KVADDR(targetaddr),PAGE_SIZE,disk_offset,UIO_READ);
+        //perform the read!
+        int err = VOP_READ(swap_file,&u);
+        if(err!=0) {
+                kprintf("Error reading:%d\n",err);
+		return err;
+        } else {
+                //kprintf("Read successfully\n");
+        }
+	return 0;	
+}
 
 
 /*
@@ -484,7 +697,9 @@ as_destroy(struct addrspace *as)
 			while(mover1 != NULL) {
 				mover2 = mover1->next;
 				//free physical page
-				free_upage( mover1->ppn);
+				if(mover1->state == PTE_IN_MEMORY) {
+					free_upage( mover1->ppn);
+				}
 				kfree(mover1);
 				mover1 = mover2;
 			}
@@ -558,8 +773,9 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 		pte_new->next = NULL;
 		pte_new->vpn = pte_old->vpn;
 		pte_new->state = PTE_IN_MEMORY;
+		
 		//allocate new physical page for this pte
-		paddr_t new_p_page= alloc_upage();
+		paddr_t new_p_page= alloc_upage(pte_new->vpn, pte_new);
 		if(new_p_page==(paddr_t)NULL) {
 			return ENOMEM;
 		}

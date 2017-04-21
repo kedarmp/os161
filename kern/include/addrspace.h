@@ -51,15 +51,12 @@
 
 struct vnode;
 
-struct core_entry {
-  unsigned int state;
-  int chunk_size;
-};
 
 extern struct spinlock core_lock;
 extern struct core_entry * coremap;
 extern unsigned int used_bytes;
 extern int total_pages;
+extern struct vnode *swap_file;
 //extern paddr_t first_free;
 
 
@@ -81,9 +78,15 @@ extern int total_pages;
     vaddr_t vpn;
     paddr_t ppn;
     int state;
+    off_t disk_offset;
     struct pte *next;
  };
 
+struct core_entry {
+ 	unsigned int state;
+ 	int chunk_size;
+	struct pte *pte_ptr;
+};
 struct addrspace {
 #if OPT_DUMBVM
         vaddr_t as_vbase1;
@@ -119,7 +122,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress);
 /* Allocate/free kernel heap pages (called by kmalloc/kfree) */
 vaddr_t alloc_kpages(unsigned npages);
 void free_kpages(vaddr_t addr);
-paddr_t alloc_upage(void);
+paddr_t alloc_upage(vaddr_t faultaddress, struct pte * pte_ptr);
 void free_upage(vaddr_t addr);
 void delete_pte(struct addrspace *as, paddr_t addr);
 

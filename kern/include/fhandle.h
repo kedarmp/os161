@@ -12,6 +12,7 @@ struct fhandle {
 	int open_mode;	// File open modes. e.g. O_WRONLY (See fcntl.h)
 	int rcount;	// Number of processes holding reference to this file handle
 	struct lock *lock;
+	struct lock *rwlock;
 	
 };
 

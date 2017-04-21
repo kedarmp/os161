@@ -9,7 +9,7 @@
 #include <syscall.h>
 #include <file_close.h>
 #include <proc_table.h>
-#include<current.h>
+#include <current.h>
 
 
 extern void *memcpy(void *dest, const void *src, size_t len);

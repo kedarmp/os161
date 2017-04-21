@@ -99,6 +99,7 @@ ram_bootstrap(void)
 		{
 			e.chunk_size = 0;	
 		}
+		e.pte_ptr = NULL;
 		traverse[i] = e;
 	}	
 
@@ -120,6 +121,7 @@ ram_bootstrap(void)
 		if(j==0) {
 			e.chunk_size = coremap_pages;
 		} 
+		e.pte_ptr = NULL;
 		traverse[i+j] = e;	
 	}
 	i += j;
@@ -129,6 +131,7 @@ ram_bootstrap(void)
 		struct core_entry e;
 		e.state = PAGE_FREE;
 		e.chunk_size = 0;
+		e.pte_ptr = NULL;
 		//put struct in physical mem
 		traverse[i] = e;
 		//traverse++;

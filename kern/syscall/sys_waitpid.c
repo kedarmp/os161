@@ -70,11 +70,11 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 		proc_destroy(child);
 	        recycle_pid(pid);
 	}
-	else {
+	// else {
 	//We should NOT have pnumthreads=1 when after child exits. else we may have to busy wait?
 //cleanup wont be performed. thats the only drawback
-		kprintf("Will leak.Child V'd.Child pnumthreads:%d\n",child->p_numthreads);
-	}
+		//kprintf("Will leak.Child V'd.Child pnumthreads:%d\n",child->p_numthreads);
+	// }
 	lock_release(curproc->proc_lock);
 	return pid;
 }
