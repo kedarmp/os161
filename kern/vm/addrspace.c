@@ -307,7 +307,8 @@ vaddr_t alloc_kpages(unsigned npages) {
 			KASSERT(old_pte != NULL);
 			coremap[idx].state = PAGE_SWAPPING;
 			coremap[idx].chunk_size = 1;
-			coremap[idx].pte_ptr = NULL;		//new_pte now owns this physical frame. If alloc_kpages calls swapout, new_pte will be NULL which is correct - there is no pte for a kernel allocation
+			coremap[idx].pte_ptr = NULL;	
+			spinlock_release(&core_lock);	
 			swapout(idx, evicted_paddr, (vaddr_t)NULL, old_pte, NULL, WILL_NOT_BE_FOLLOWED_BY_SWAPIN);
 			return (vaddr_t)(MIPS_KSEG0 + evicted_paddr); 
 			}
