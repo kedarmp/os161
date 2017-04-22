@@ -143,13 +143,13 @@ struct pte* check_in_page_table(vaddr_t faultaddress,struct addrspace *as)
 
 	while(mover!=NULL)
 	{
-		lock_acquire(mover->pte_lock);
+		//lock_acquire(mover->pte_lock);
 		if(vpn == mover->vpn)
 		{
 			return mover;	//NOTE: After this point, we will either go to PTE_IN_MEMORY or ON_DISK. If it is on disk, we will call alloc_upage, which calls swapout, which will
 			//try to reacquire this same lock - which is fine in our implementation of locks. If it is in memory, we shall make sure to release it there manually
 		}
-		lock_release(mover->pte_lock);
+	//	lock_release(mover->pte_lock);
 		mover = mover->next;
 	}
 	return NULL;
@@ -186,7 +186,7 @@ struct pte* create_pte(vaddr_t faultaddress, struct addrspace *as)
 			}
 		mover->next = new_pte;
 	}
-	lock_acquire(new_pte->pte_lock);	//acquire lock immediately after creation so that the later code can run atomically without allowing hthis page to bedestroyed
+//	lock_acquire(new_pte->pte_lock);	//acquire lock immediately after creation so that the later code can run atomically without allowing hthis page to bedestroyed
 	return new_pte;
 }
 
@@ -243,6 +243,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 		}
 
 	}
+	lock_acquire(page->pte_lock);
 	//check if a physical page has been allocated, if not, allocate it
 	if(page->state == PTE_IN_MEMORY) {
 		//UPDATE TLB
