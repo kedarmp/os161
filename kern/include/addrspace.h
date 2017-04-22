@@ -33,6 +33,7 @@
 #define PAGE_FREE 2
 #define PAGE_USER 3
 #define PAGE_SWAPPING 4 
+#define PAGE_COPYING 5
 /*
  * Address space structure and operations.
  */

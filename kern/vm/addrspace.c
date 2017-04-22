@@ -255,6 +255,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 
 	}
 	else if(page->state == PTE_ON_DISK){
+		lock_release(page->pte_lock);
 	 	//swap in the page 
 		paddr_t free_page = alloc_upage(faultaddress, page);
 		swapin(free_page, page);
@@ -269,6 +270,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 vaddr_t alloc_kpages(unsigned npages) {
 
 		spinlock_acquire(&core_lock);	
+	
 		struct core_entry* traverse_end = coremap;
 		struct core_entry* marker = traverse_end;
 		
@@ -367,7 +369,7 @@ void free_kpages(vaddr_t addr) {
 int evict_page(uint32_t max) {
 	int random_idx = random()%max;
 	//Dont return us fixed/in-swap pages at all
-	while(coremap[random_idx].state == PAGE_FIXED || coremap[random_idx].state == PAGE_SWAPPING) {
+	while(coremap[random_idx].state == PAGE_FIXED || coremap[random_idx].state == PAGE_SWAPPING || coremap[random_idx].state == PAGE_COPYING) {
 		random_idx = random()%max;
 	}
 	return random_idx;
@@ -447,8 +449,8 @@ void free_upage(paddr_t addr) {
 
 //Clear the TLB, Swap out a page located  at addr and whose coremap entry is at index idx
 void swapout(int idx, paddr_t addr, vaddr_t faultaddress, struct pte* old_pte, struct pte* new_pte, int decision) {
-
-
+	
+	(void)decision;
 	lock_acquire(old_pte->pte_lock);
 	if(faultaddress != (vaddr_t)NULL) {	//clear TLB only if alloc_upages called swapout
 		//flush TLB
@@ -471,34 +473,30 @@ void swapout(int idx, paddr_t addr, vaddr_t faultaddress, struct pte* old_pte, s
 		bitmap_alloc(map, &pos);
 		offset =  pos * PAGE_SIZE;
 	}
+
 	//else we simply write back to the same offset that this page was previously written to	
 	
-	lock_release(old_pte->pte_lock);
 	//copy to file
 	int err = write_to_disk(addr, offset);
 	if(err) {
 		panic("swapout: Couldn't write to disk!");
 	}
 
-	lock_acquire(old_pte->pte_lock);
 	bzero((void*)(addr + MIPS_KSEG0), PAGE_SIZE);
-
 	
 	//copy the location to pte of of this page
 	old_pte->state = PTE_ON_DISK;
 	old_pte->disk_offset = offset;
 	lock_release(old_pte->pte_lock);
-
-	//keep some kind of lock until this point above
+	
 	spinlock_acquire(&core_lock);	//may have to put this inside the pte lock?
 	if(new_pte == NULL)	//alloc_kpages called swapout
 		coremap[idx].state = PAGE_FIXED;
-	else
-		coremap[idx].state = PAGE_USER;
+	//else, dont change swapping state until swapin completes!
 	spinlock_release(&core_lock);
-	if(decision == WILL_BE_FOLLOWED_BY_SWAPIN) {
-		lock_acquire(new_pte->pte_lock);
-		}
+	
+
+	//keep some kind of lock until this point above
 	//else this lock will be released in swapin
 }
 
@@ -512,17 +510,23 @@ void swapin(paddr_t free_page, struct pte * page_pte) {
 	if(err) {
 		panic("swapin: Couldn't read from  disk!");
 	}
-	
+	lock_acquire(page_pte->pte_lock);
 	page_pte->state = PTE_IN_MEMORY;
 	page_pte->ppn = free_page;
-
+	lock_release(page_pte->pte_lock);
+	
 	//Load the TLB
 	 int  spl = splhigh();
          tlb_random(page_pte->vpn, (page_pte->ppn) | TLBLO_DIRTY | TLBLO_VALID);
          splx(spl);		
 
+	//update state of page in coremap
+	spinlock_acquire(&core_lock);
+	coremap[free_page/PAGE_SIZE].state = PAGE_USER;
+	spinlock_release(&core_lock);
+
+
     //release the lock acquired in swapout(when a vM-fault occured)
-	lock_release(page_pte->pte_lock);
 
 }
 
@@ -731,7 +735,9 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 
 
 	while(pte_old!=NULL) {
-		lock_acquire(pte_old->pte_lock);	//Locking prevents this page from being swapped out
+		spinlock_acquire(&core_lock);
+		coremap[pte_old->ppn/PAGE_SIZE].state = PAGE_COPYING;
+		spinlock_release(&core_lock);
 		struct pte *pte_new = kmalloc(sizeof(struct pte));
 		if(pte_new == NULL) {
 			return ENOMEM;
@@ -747,7 +753,6 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 		pte_new->vpn = pte_old->vpn;
 		pte_new->state = PTE_IN_MEMORY;
 		pte_new->pte_lock = lock_create("ascopy_pte_lock");
-		lock_acquire(pte_new->pte_lock);
 		
 		//allocate new physical page for this pte. This will lock the PTE (need to manually release the lock after copying is done)
 		paddr_t new_p_page= alloc_upage(pte_new->vpn, pte_new);
@@ -755,7 +760,6 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 			return ENOMEM;
 		}
 		pte_new->ppn = trim_physical(new_p_page);
-
 		//copy contents of old physical page to new physical page
 		if(pte_old->state == PTE_ON_DISK)
 		{
@@ -767,10 +771,13 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 		}
 		else
 		{
+			//we need to make sure that the page corr to pte_old is NOT swapped out!
 			memmove((void *)(MIPS_KSEG0 + pte_new->ppn),(const void*)(MIPS_KSEG0 + pte_old->ppn),PAGE_SIZE);	
 		}
-		lock_release(pte_new->pte_lock);	//copy is done, release both locks
-		lock_release(pte_old->pte_lock);
+		
+		spinlock_acquire(&core_lock);
+		coremap[pte_old->ppn/PAGE_SIZE].state = PAGE_USER;
+		spinlock_release(&core_lock);
 		
 		pte_old = pte_old->next;
 		mover = pte_new;
