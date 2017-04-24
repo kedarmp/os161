@@ -17,7 +17,7 @@ extern void *memcpy(void *dest, const void *src, size_t len);
 pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *errptr)
 {
 
-
+	// kprintf("Forked\n");
 	//Check if kernel thread isnt calling fork.22880
 	if(parent_proc -> proc_id < 2)
 	{
