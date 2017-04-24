@@ -172,6 +172,8 @@ struct pte* create_pte(vaddr_t faultaddress, struct addrspace *as)
 	new_pte->state = PTE_IN_MEMORY;
 	new_pte->disk_offset = -1;
 	new_pte->pte_lock = lock_create("pte_lock");
+
+	lock_acquire(new_pte->pte_lock);
 	paddr_t new_p_page = alloc_upage(new_pte, WILL_BE_FOLLOWED_BY_SWAPIN);
 	KASSERT(new_p_page != (paddr_t)NULL);
 	new_pte->ppn = trim_physical(new_p_page);
@@ -304,14 +306,40 @@ vaddr_t alloc_kpages(unsigned npages) {
 			 	freepage = MIPS_KSEG0 + PAGE_SIZE*(i+1); //update physical address too
 			}
 		}
+		if(found == npages) {	//found "npages" free pages starting at traverse
+			//paddr_t ret_address = traverse_end - (npages*sizeof(struct core_entry));
+
+			//the segment from marker upto npages ahead should now be marked as fixed
+			
+			for(unsigned j=0; j<npages; j++) {
+				marker[j].state = PAGE_FIXED;
+				marker[j].pte_ptr = NULL;	//No PTE for kernel page
+				if(j==0)
+					marker[j].chunk_size = npages;	//else its zero
+			}
+			used_bytes += npages*PAGE_SIZE;
+			//return a physical address vaddr corresponding to "marker"
+			// kprintf("Allocating %d pages from %u\n",npages,freepage);
+			bzero((void*)(freepage),PAGE_SIZE);
+			spinlock_release(&core_lock);
+			return freepage;
+		}
+
 		if(i==total_pages)
 		{
 			if(SWAP_ENABLED == 1) {
 			//choose page to evict
+			KASSERT(npages == 1);
 			int idx = evict_page(total_pages);
 			paddr_t evicted_paddr = PAGE_SIZE*idx;
 			struct pte *old_pte = coremap[idx].pte_ptr;
+
 			KASSERT(old_pte != NULL);
+			if(old_pte->state == PTE_IN_MEMORY) {		
+				KASSERT(old_pte->ppn == evicted_paddr);	//only if the page is  in memory should we perform this basic check
+			}
+
+
 			coremap[idx].state = PAGE_SWAPPING;
 			coremap[idx].chunk_size = 1;
 			coremap[idx].pte_ptr = NULL;	
@@ -331,24 +359,7 @@ vaddr_t alloc_kpages(unsigned npages) {
 			}
 		}
 			
-		if(found == npages) {	//found "npages" free pages starting at traverse
-			//paddr_t ret_address = traverse_end - (npages*sizeof(struct core_entry));
-
-			//the segment from marker upto npages ahead should now be marked as fixed
-			
-			for(unsigned j=0; j<npages; j++) {
-				marker[j].state = PAGE_FIXED;
-				marker[j].pte_ptr = NULL;	//No PTE for kernel page
-				if(j==0)
-					marker[j].chunk_size = npages;	//else its zero
-			}
-			used_bytes += npages*PAGE_SIZE;
-			//return a physical address vaddr corresponding to "marker"
-			// kprintf("Allocating %d pages from %u\n",npages,freepage);
-			bzero((void*)(freepage),PAGE_SIZE);
-			spinlock_release(&core_lock);
-			return freepage;
-		}
+		
 		
 
 	// return (vaddr_t)NULL;
@@ -419,7 +430,9 @@ paddr_t alloc_upage(struct pte *page_pte, int decision) {
 			
 			struct pte *old_pte = coremap[idx].pte_ptr;
 			KASSERT(old_pte != NULL);
-			KASSERT(old_pte->ppn == evicted_paddr);
+			if(old_pte->state == PTE_IN_MEMORY) {		
+				KASSERT(old_pte->ppn == evicted_paddr);	//only if the page is  in memory should we perform this basic check
+			}
 			coremap[idx].state = PAGE_SWAPPING;
 			coremap[idx].chunk_size = 1;
 			coremap[idx].pte_ptr = page_pte;		//new_pte now owns this physical frame. If alloc_kpages calls swapout, new_pte will be NULL which is correct - there is no pte for a kernel allocation
@@ -474,7 +487,7 @@ void swapout(int idx, paddr_t addr, struct pte* old_pte, struct pte* new_pte, in
 	//flush TLB
 	int spl = splhigh();
    	int tlb_idx = tlb_probe(old_pte->vpn & PAGE_FRAME, 0);
-    if(tlb_idx>0) {
+    if(tlb_idx>=0) {
 		tlb_write(TLBHI_INVALID(tlb_idx), TLBLO_INVALID(), tlb_idx);
 	}
 	splx(spl);
@@ -547,8 +560,6 @@ void swapin(paddr_t free_page, struct pte * page_pte) {
 	coremap[free_page/PAGE_SIZE].state = PAGE_USER;
 	spinlock_release(&core_lock);
 	lock_release(page_pte->pte_lock);
-
-
     //release the lock acquired in swapout(when a vM-fault occured)
 
 }
@@ -758,9 +769,12 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 
 
 	while(pte_old!=NULL) {
+		lock_acquire(pte_old->pte_lock);
+		if(pte_old->state == PTE_IN_MEMORY) {
 		spinlock_acquire(&core_lock);
 		coremap[pte_old->ppn/PAGE_SIZE].state = PAGE_COPYING;
 		spinlock_release(&core_lock);
+		}
 		struct pte *pte_new = kmalloc(sizeof(struct pte));
 		if(pte_new == NULL) {
 			return ENOMEM;
@@ -785,7 +799,7 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 		}
 		pte_new->ppn = trim_physical(new_p_page);
 		//copy contents of old physical page to new physical page
-		lock_acquire(pte_old->pte_lock);
+		
 		if(pte_old->state == PTE_ON_DISK)
 		{
 			int err = read_to_disk(pte_new->ppn, pte_old->disk_offset);
@@ -797,13 +811,15 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 		else
 		{
 			//we need to make sure that the page corr to pte_old is NOT swapped out!
-			memmove((void *)(MIPS_KSEG0 + pte_new->ppn),(const void*)(MIPS_KSEG0 + pte_old->ppn),PAGE_SIZE);	
+			memmove((void *)(MIPS_KSEG0 + pte_new->ppn),(const void*)(MIPS_KSEG0 + pte_old->ppn),PAGE_SIZE);
+			spinlock_acquire(&core_lock);
+			coremap[pte_old->ppn/PAGE_SIZE].state = PAGE_USER;
+			spinlock_release(&core_lock);	
 		}
 		
+		
 		lock_release(pte_old->pte_lock);
-		spinlock_acquire(&core_lock);
-		coremap[pte_old->ppn/PAGE_SIZE].state = PAGE_USER;
-		spinlock_release(&core_lock);
+		
 		
 		pte_old = pte_old->next;
 		mover = pte_new;
