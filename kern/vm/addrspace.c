@@ -320,7 +320,7 @@ vaddr_t alloc_kpages(unsigned npages) {
 
 			lock_acquire(old_pte->pte_lock);
 			old_pte->state = PTE_ON_DISK;
-			lock_release(old_pte->pte_lock);
+			// lock_release(old_pte->pte_lock);
 			swapout(idx, evicted_paddr, old_pte, NULL, WILL_NOT_BE_FOLLOWED_BY_SWAPIN);
 			return (vaddr_t)(MIPS_KSEG0 + evicted_paddr); 
 			}
@@ -416,6 +416,7 @@ paddr_t alloc_upage(struct pte *page_pte, int decision) {
 			//choose page to evict
 			int idx = evict_page(total_pages);
 			paddr_t evicted_paddr = PAGE_SIZE*idx;
+			
 			struct pte *old_pte = coremap[idx].pte_ptr;
 			KASSERT(old_pte != NULL);
 			KASSERT(old_pte->ppn == evicted_paddr);
@@ -430,7 +431,7 @@ paddr_t alloc_upage(struct pte *page_pte, int decision) {
 
 			lock_acquire(old_pte->pte_lock);
 			old_pte->state = PTE_ON_DISK;
-			lock_release(old_pte->pte_lock);
+			// lock_release(old_pte->pte_lock);
 			swapout(idx, evicted_paddr, old_pte, page_pte, decision);
 			
 			//spinlock_release(&core_lock);	
@@ -469,7 +470,7 @@ void free_upage(paddr_t addr) {
 //Clear the TLB, Swap out a page located  at addr and whose coremap entry is at index idx
 void swapout(int idx, paddr_t addr, struct pte* old_pte, struct pte* new_pte, int decision) {
 	
-	lock_acquire(old_pte->pte_lock);
+	// lock_acquire(old_pte->pte_lock);
 	//flush TLB
 	int spl = splhigh();
    	int tlb_idx = tlb_probe(old_pte->vpn & PAGE_FRAME, 0);
@@ -784,6 +785,7 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 		}
 		pte_new->ppn = trim_physical(new_p_page);
 		//copy contents of old physical page to new physical page
+		lock_acquire(pte_old->pte_lock);
 		if(pte_old->state == PTE_ON_DISK)
 		{
 			int err = read_to_disk(pte_new->ppn, pte_old->disk_offset);
@@ -798,6 +800,7 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 			memmove((void *)(MIPS_KSEG0 + pte_new->ppn),(const void*)(MIPS_KSEG0 + pte_old->ppn),PAGE_SIZE);	
 		}
 		
+		lock_release(pte_old->pte_lock);
 		spinlock_acquire(&core_lock);
 		coremap[pte_old->ppn/PAGE_SIZE].state = PAGE_USER;
 		spinlock_release(&core_lock);
