@@ -42,6 +42,7 @@
 #include <stat.h>
 #include <bitmap.h>
 #include <uio.h>
+#include<cpu.h>
 
 
 extern vaddr_t firstfree;
@@ -280,6 +281,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 	} else {
 		panic("Invalid page state");
 	}
+	ipi_broadcast(IPI_TLBSHOOTDOWN);
 	return 0;
 }
 
