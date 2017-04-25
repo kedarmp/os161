@@ -175,6 +175,11 @@ struct pte* create_pte(vaddr_t faultaddress, struct addrspace *as)
 
 	lock_acquire(new_pte->pte_lock);
 	paddr_t new_p_page = alloc_upage(new_pte, WILL_BE_FOLLOWED_BY_SWAPIN);
+	
+	spinlock_acquire(&core_lock);
+	coremap[new_p_page/PAGE_SIZE].pte_ptr = new_pte;
+	spinlock_release(&core_lock);
+
 	KASSERT(new_p_page != (paddr_t)NULL);
 	KASSERT(coremap[new_p_page/PAGE_SIZE].pte_ptr == new_pte);
 	new_pte->ppn = trim_physical(new_p_page);
@@ -265,6 +270,9 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 	else if(page->state == PTE_ON_DISK){
 	 	//swap in the page 
 		paddr_t free_page = alloc_upage(page, WILL_BE_FOLLOWED_BY_SWAPIN);
+		spinlock_acquire(&core_lock);
+		coremap[free_page/PAGE_SIZE].pte_ptr = page;
+		spinlock_release(&core_lock);
 		page->ppn = free_page;
 		KASSERT(coremap[free_page/PAGE_SIZE].pte_ptr == page);
 		swapin(free_page, page);
@@ -438,7 +446,7 @@ paddr_t alloc_upage(struct pte *page_pte, int decision) {
 			
 			coremap[idx].state = PAGE_SWAPPING;
 			coremap[idx].chunk_size = 1;
-			coremap[idx].pte_ptr = page_pte;		//new_pte now owns this physical frame. If alloc_kpages calls swapout, new_pte will be NULL which is correct - there is no pte for a kernel allocation
+			//coremap[idx].pte_ptr = page_pte;		//new_pte now owns this physical frame. If alloc_kpages calls swapout, new_pte will be NULL which is correct - there is no pte for a kernel allocation
 
 			//4/23: if a curcpu->spinlock ASSERT fails, then move this lock block below the spinlock_release OR acquire this lock right before spinlock_acquire(make sure to release it at all points though..esp the break statements!)
 			
@@ -519,7 +527,7 @@ void swapout(int idx, paddr_t addr, struct pte* old_pte, struct pte* new_pte, in
 		panic("swapout: Couldn't write to disk!");
 	}
 
-	bzero((void*)(addr + MIPS_KSEG0), PAGE_SIZE);
+	
 	
 	//copy the location to pte of of this page
 	old_pte->disk_offset = offset;
@@ -528,7 +536,8 @@ void swapout(int idx, paddr_t addr, struct pte* old_pte, struct pte* new_pte, in
 	spinlock_acquire(&core_lock);	//may have to put this inside the pte lock?
 	if(new_pte == NULL)	//alloc_kpages called swapout
 		coremap[idx].state = PAGE_FIXED;
-	
+
+	bzero((void*)(addr + MIPS_KSEG0), PAGE_SIZE);
 	//else, dont change swapping state until swapin completes!
 	spinlock_release(&core_lock);
 	lock_release(old_pte->pte_lock);
@@ -543,11 +552,13 @@ void swapin(paddr_t free_page, struct pte * page_pte) {
 
 //	kprintf("swapin called");
 	//copy from swap file
+
 	int err = read_to_disk(free_page, page_pte->disk_offset);
 	if(err) {
 		panic("swapin: Couldn't read from  disk!");
 	}
 	page_pte->state = PTE_IN_MEMORY;
+	spinlock_acquire(&core_lock);
 
 	//Load the TLB
 	 int  spl = splhigh();
@@ -556,7 +567,7 @@ void swapin(paddr_t free_page, struct pte * page_pte) {
 
 	//update state of page in coremap
      
-	spinlock_acquire(&core_lock);
+	
 	KASSERT(coremap[free_page/PAGE_SIZE].pte_ptr == page_pte);
 
 	coremap[free_page/PAGE_SIZE].state = PAGE_USER;
@@ -796,6 +807,9 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 		
 		//allocate new physical page for this pte. This will lock the PTE (need to manually release the lock after copying is done)
 		paddr_t new_p_page= alloc_upage(pte_new, WILL_BE_FOLLOWED_BY_SWAPIN);
+		spinlock_acquire(&core_lock);
+		coremap[new_p_page/PAGE_SIZE].pte_ptr = pte_new;
+		spinlock_release(&core_lock);
 		KASSERT(coremap[new_p_page/PAGE_SIZE].pte_ptr == pte_new);
 		if(new_p_page==(paddr_t)NULL) {
 			return ENOMEM;

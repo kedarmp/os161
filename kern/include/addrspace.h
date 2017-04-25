@@ -34,7 +34,7 @@
 #define PAGE_USER 3
 #define PAGE_SWAPPING 4 
 #define PAGE_COPYING 5
-#define PAGE_SHIT 6
+
 /*
  * Address space structure and operations.
  */
