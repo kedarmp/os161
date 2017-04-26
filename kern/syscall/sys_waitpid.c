@@ -12,16 +12,19 @@ pid_t
 sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 	if(options !=0)
 	{
+		panic("otions !=0");
 		*errptr = EINVAL;
 		return -1;
 	}
 	if(pid<2 || pid >= MAX_PROC) {
+		panic("invalid pid!=0");
 		*errptr = ESRCH;
 		return -1;
 	}
 	struct proc *child = get_proc(pid);
 	if(child == NULL)
 	{
+		panic("null get_proc");
 		//kprintf("NULL_get_proc:%d\n",pid);
 		*errptr = ESRCH;
 		return -1;	
@@ -35,6 +38,7 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 	if(curproc->proc_id != child->parent_proc_id)
 	{
 		//kprintf("WRONG_PARENT:%d\n",pid);
+		panic("mismatch parent:%d of child:%d",curproc->proc_id,child->proc_id);
 		*errptr = ECHILD;
 		return -1;
 	}
@@ -52,7 +56,8 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 	          
 	                int err = copyout(&err_code, status, sizeof(int));
 	                if(err) {
-	                        *errptr = EFAULT;
+	                		//panic("Erro copying out wiatpi status\n");
+	                        //*errptr = EFAULT;
 	                        recycle_pid(pid);//in any case, recycle the pid of the child, since its exited
 	                        //even if copying out failed(e.g. because of bad ptr, do we still have to cleanup the child)? 7792
 	                        if(child->p_numthreads == 0) 
@@ -61,7 +66,8 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 				}
 
 				lock_release(curproc->proc_lock);
-	                        return -1;
+							*errptr = 0;
+	                        return pid;
 	                        }
 	         }
 	}      

@@ -68,7 +68,11 @@ void recycle_pid(pid_t pid)
 
 struct proc* get_proc(pid_t pid)
 {
-	return proc_table[pid];
+	struct proc * ret = NULL;
+	lock_acquire(plock);
+	ret = proc_table[pid];
+	lock_release(plock);
+	return ret;
 }
 
 

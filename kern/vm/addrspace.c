@@ -209,20 +209,22 @@ struct pte* create_pte(vaddr_t faultaddress, struct addrspace *as)
 void delete_pte(struct addrspace *as, vaddr_t addr) {
 	struct pte * mover = as->page_table;
 	struct pte *mover2 = mover;
-	int spl;
+	
 	while(mover!=NULL) {
 		if(mover->vpn == (addr)) {
 			mover2->next = mover->next;
-			spl = splhigh();
+			
+			lock_acquire(mover->pte_lock);
+			if(mover->state == PTE_IN_MEMORY) {
+			//clear the tlb
+			int spl = splhigh();
 			int tlb_idx = tlb_probe(mover->vpn, 0);
 			if(tlb_idx>=0) {
-
 				tlb_write(TLBHI_INVALID(tlb_idx), TLBLO_INVALID(), tlb_idx);
 			}
 			splx(spl);
-			lock_acquire(mover->pte_lock);
-			if(mover->state == PTE_IN_MEMORY) {
-				free_upage(mover->ppn);
+
+			free_upage(mover->ppn);
 			}
 			else if(mover->state == PTE_ON_DISK) {
                                 //unmark the bitmap on disk, and bzero the disk somehow
@@ -755,6 +757,7 @@ as_destroy(struct addrspace *as)
 				mover2 = mover1->next;
 				//free physical page
 				if(mover1->state == PTE_IN_MEMORY) {
+
 					free_upage(mover1->ppn);
 //If its PAGE_USER, then it nobody has swapped us out. if its swapping, then it's not our page anymore anyway. It cannot be anything else(fixed/copying/free) since we own it actively.
 //					free_upage( mover1->ppn);
