@@ -5,14 +5,14 @@
 
 #define MAX_PROC 100
 //Generate PID
-pid_t create_pid(void);
+pid_t create_pid(struct proc *proc);
 
 //Recycle PID
 void recycle_pid(pid_t pid);
 
 //Get the process
 struct proc* get_proc(pid_t pid);
-void add_proc(struct proc * p);
+//void add_proc(struct proc * p);
 
 //Number of processes
 extern volatile int proc_count;

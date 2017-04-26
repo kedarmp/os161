@@ -58,14 +58,10 @@ sys_waitpid(pid_t pid, userptr_t status, int options,int *errptr) {
 	                if(err) {
 	                		//panic("Erro copying out wiatpi status\n");
 	                        //*errptr = EFAULT;
-	                        recycle_pid(pid);//in any case, recycle the pid of the child, since its exited
 	                        //even if copying out failed(e.g. because of bad ptr, do we still have to cleanup the child)? 7792
-	                        if(child->p_numthreads == 0) 
-				{
-					proc_destroy(child);
-				}
-
-				lock_release(curproc->proc_lock);
+							proc_destroy(child);
+							recycle_pid(pid);//in any case, recycle the pid of the child, since its exited
+							lock_release(curproc->proc_lock);
 							*errptr = 0;
 	                        return pid;
 	                        }

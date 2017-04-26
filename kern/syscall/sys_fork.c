@@ -47,7 +47,7 @@ pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *err
  	KASSERT(parent_proc->proc_id == curproc->proc_id);
 	child -> parent_proc_id = curproc -> proc_id;
 //	child -> p_numthreads = 1;
-
+	KASSERT(parent_proc->proc_id == child->parent_proc_id);
 	
 
 	struct addrspace *child_addrspace = NULL;
@@ -80,13 +80,14 @@ pid_t sys_fork(struct trapframe* old_trapframe,struct proc* parent_proc,int *err
 	for(i = 0;i<OPEN_MAX;i++)
 	{
 		if(parent_proc -> ftable[i]!= NULL) //&& parent_proc ->ftable[i]!=(struct fhandle*)0xdeadbeef) 
- 		{		struct fhandle *parent_handle = parent_proc->ftable[i];
-		lock_acquire(parent_handle->lock);
-		
+ 		{		
+ 			struct fhandle *parent_handle = parent_proc->ftable[i];
+			lock_acquire(parent_handle->lock);
+			
 			//increase reference counts of all file handles in parent before copying them to child(also use locks someplace)
 			parent_handle -> rcount += 1;
 			child -> ftable[i] = parent_handle;
-		lock_release(parent_handle->lock);
+			lock_release(parent_handle->lock);
 		}
 		
 	}

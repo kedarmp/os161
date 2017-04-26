@@ -299,7 +299,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 	} else {
 		panic("Invalid page state");
 	}
-	ipi_broadcast(IPI_TLBSHOOTDOWN);
+	// ipi_broadcast(IPI_TLBSHOOTDOWN);
 	return 0;
 }
 

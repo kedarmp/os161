@@ -1,4 +1,5 @@
 //Declaring an array of structs for the process table 
+#include <proc.h>
 #include <limits.h>
 #include <proc_table.h>
 
@@ -18,7 +19,7 @@ void proc_initialize(void)
     }
 }
 
-pid_t create_pid(void)
+pid_t create_pid(struct proc *proc)
 {
 	if(plock == NULL)
 	{
@@ -40,9 +41,12 @@ pid_t create_pid(void)
 			lock_release(plock);
 		}
 		return -1;
-	}	
-	if(proc_count > 0)
+	}
+	proc_table[i] = proc;
+	proc_count++;
+	if(proc_count > 1)
 	{
+		
 		lock_release(plock);
 	}
 	return (pid_t)i;	
@@ -76,20 +80,21 @@ struct proc* get_proc(pid_t pid)
 }
 
 
-void add_proc(struct proc * p) 
-{
-	if(proc_count>0)
-	{
-		lock_acquire(plock);
-	}
-	proc_table[p->proc_id] = p;
-	proc_count++;
-	if(lock_do_i_hold(plock))	//in other words, when we're not adding the kernel proc
-	{
-		if(proc_count > 1)
-		{
-			lock_release(plock);
-		}
-	}
-//	spinlock_release(splock);
-}
+// void add_proc(struct proc * p) 
+// {
+// 	return;
+// 	if(proc_count>0)
+// 	{
+// 		lock_acquire(plock);
+// 	}
+// 	proc_table[p->proc_id] = p;
+// 	proc_count++;
+// 	if(lock_do_i_hold(plock))	//in other words, when we're not adding the kernel proc
+// 	{
+// 		if(proc_count > 1)
+// 		{
+// 			lock_release(plock);
+// 		}
+// 	}
+// //	spinlock_release(splock);
+// }

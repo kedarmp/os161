@@ -53,7 +53,6 @@
  #include <synch.h>
  #include <vfs.h>
  #include <fhandle.h>
- #include <proc_table.h>
 
 /*
  * The process for the kernel; this holds all the kernel-only threads.
@@ -89,10 +88,10 @@ proc_create(const char *name)
 	proc->p_cwd = NULL;
 
 	//assign new process id
-	proc->proc_id = create_pid();
+	proc->proc_id = create_pid(proc);
 	if(proc->proc_id == -1) {
 		kfree(proc);
-		recycle_pid(proc->proc_id);
+		//recycle_pid(proc->proc_id);
 		return NULL;
 	}
 	proc->parent_proc_id = 1;	//make kernel process the parent of all processes by default
@@ -104,7 +103,7 @@ proc_create(const char *name)
 	}
 
 	//add process to process table
-	add_proc(proc);
+	//add_proc(proc);
 	//initialize semaphore
 	proc->sem = sem_create("sem",0);
 	if(proc->sem == NULL) {	//cant proceed without a semaphore
