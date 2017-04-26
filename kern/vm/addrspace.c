@@ -479,9 +479,9 @@ void free_upage(paddr_t addr) {
 	int index = (addr)/PAGE_SIZE;
 	struct core_entry e = coremap[index];
 	// kprintf("struct located. Chunk size:%d\n",e.chunk_size);
-	KASSERT(e.state == PAGE_USER);
-	KASSERT(e.chunk_size != 0);
-	if(e.state == PAGE_USER && e.chunk_size!=0) {	//later we shouldnt be freeing FIXED pages
+	//KASSERT(e.state == PAGE_USER);
+	//KASSERT(e.chunk_size != 0);	
+	if(e.state == PAGE_USER) {	//free only "user" pages
 		//kprintf("Alloc_U_PAGES:Found \n");
 		used_bytes-= PAGE_SIZE;
 		coremap[index].state = PAGE_FREE;
@@ -697,7 +697,6 @@ as_create(void)
 void
 as_destroy(struct addrspace *as)
 {
-	return;
 	if(as!=NULL) {
 		//deallocate a_regions linkedlist
 		if(as->a_regions != NULL) {
@@ -720,11 +719,26 @@ as_destroy(struct addrspace *as)
 			struct pte *mover1 = as->page_table;
 			struct pte *mover2 = NULL;
 			while(mover1 != NULL) {
+				lock_acquire(mover1->pte_lock);
 				mover2 = mover1->next;
 				//free physical page
 				if(mover1->state == PTE_IN_MEMORY) {
-					free_upage( mover1->ppn);
+					free_upage(mover1->ppn);
+//If its PAGE_USER, then it nobody has swapped us out. if its swapping, then it's not our page anymore anyway. It cannot be anything else(fixed/copying/free) since we own it actively.
+//					free_upage( mover1->ppn);
 				}
+				else if(mover1->state == PTE_ON_DISK) {
+					//unmark the bitmap on disk, and bzero the disk somehow
+					lock_acquire(bitmap_lock);
+					bitmap_unmark(map, (mover1->disk_offset)/PAGE_SIZE);
+					//Do we need to clear the disk area too? How?
+					lock_release(bitmap_lock);
+				} else {
+					panic("Invalid PTE state!\n");
+				}
+				lock_release(mover1->pte_lock);
+				lock_destroy(mover1->pte_lock);//NOTE: what happens to someone who has done an acquire on this lock?
+				mover1->pte_lock = NULL;
 				kfree(mover1);
 				mover1 = mover2;
 			}
