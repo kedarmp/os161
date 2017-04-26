@@ -78,6 +78,8 @@ int read_to_disk(paddr_t targetaddr, off_t disk_offset);
 
 int SWAP_ENABLED;
 
+int last = -1;
+
 void vm_bootstrap(void) {
 	//initialize bitmap
 
@@ -414,12 +416,28 @@ void free_kpages(vaddr_t addr) {
 
 //return random number between 0 to (max-1)
 int evict_page(uint32_t max) {
-	int random_idx = random()%max;
+/*	int random_idx = random()%max;
 	//Dont return us fixed/in-swap pages at all
 	while(coremap[random_idx].state == PAGE_FIXED || coremap[random_idx].state == PAGE_SWAPPING || coremap[random_idx].state == PAGE_COPYING) {
 		random_idx = random()%max;
 	}
 	return random_idx;
+*/
+	
+	unsigned int howmany = 0;
+	unsigned int i=(last+1)%max;
+	for(;howmany<max;i++,howmany++) {
+		if(coremap[i].state == PAGE_USER) {
+			last = i;
+			break;
+		}
+		if(i == max-1) {
+			i=0;
+			
+		}
+	}
+	return last;
+
 }
 
 // ALloc user page:
