@@ -211,15 +211,29 @@ void delete_pte(struct addrspace *as, vaddr_t addr) {
 	while(mover!=NULL) {
 		if(mover->vpn == (addr)) {
 			mover2->next = mover->next;
+			spl = splhigh();
 			int tlb_idx = tlb_probe(mover->vpn, 0);
-			if(tlb_idx>0) {
-				spl = splhigh();
+			if(tlb_idx>=0) {
 
 				tlb_write(TLBHI_INVALID(tlb_idx), TLBLO_INVALID(), tlb_idx);
-				splx(spl);
 			}
-			free_upage(mover->ppn);
-
+			splx(spl);
+			lock_acquire(mover->pte_lock);
+			if(mover->state == PTE_IN_MEMORY) {
+				free_upage(mover->ppn);
+			}
+			else if(mover->state == PTE_ON_DISK) {
+                                //unmark the bitmap on disk, and bzero the disk somehow
+                                lock_acquire(bitmap_lock);
+                                bitmap_unmark(map, (mover->disk_offset)/PAGE_SIZE);
+                                //Do we need to clear the disk area too? How?
+                                lock_release(bitmap_lock);
+                        } else {
+                                panic("Invalid PTE state!\n");
+                        }
+                        lock_release(mover->pte_lock);
+			lock_destroy(mover->pte_lock);
+			mover->pte_lock = NULL;
 			kfree(mover);
 			return;
 		}
