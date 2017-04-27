@@ -176,15 +176,12 @@ struct pte* create_pte(vaddr_t faultaddress, struct addrspace *as)
 	new_pte->disk_offset = -1;
 	new_pte->pte_lock = lock_create("pte_lock");
 
-	lock_acquire(new_pte->pte_lock);
+	// lock_acquire(new_pte->pte_lock);
 	paddr_t new_p_page = alloc_upage(new_pte, WILL_BE_FOLLOWED_BY_SWAPIN);
 	
-	spinlock_acquire(&core_lock);
-	coremap[new_p_page/PAGE_SIZE].pte_ptr = new_pte;
-	spinlock_release(&core_lock);
-
 	KASSERT(new_p_page != (paddr_t)NULL);
 	KASSERT(coremap[new_p_page/PAGE_SIZE].pte_ptr == new_pte);
+	
 	new_pte->ppn = trim_physical(new_p_page);
 
 	struct pte *mover = as->page_table;
@@ -200,9 +197,6 @@ struct pte* create_pte(vaddr_t faultaddress, struct addrspace *as)
 		mover->next = new_pte;
 	}
 //	lock_acquire(new_pte->pte_lock);	//acquire lock immediately after creation so that the later code can run atomically without allowing hthis page to bedestroyed
-	spinlock_acquire(&core_lock);
-	coremap[new_p_page/PAGE_SIZE].state = PAGE_USER;
-	spinlock_release(&core_lock);
 	return new_pte;
 }
 
@@ -274,6 +268,32 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 			return ENOMEM;	//one of the mallocs failed in create_pte
 		}
 
+		uint32_t ehi,elo;
+		spl = splhigh();
+		int count = 0;
+
+		for(int i=0; i<NUM_TLB; i++) 
+		{
+			tlb_read(&ehi, &elo, i);
+			if (elo & TLBLO_VALID) 
+			{
+				continue;
+			}
+			ehi = page->vpn;
+			elo = (page->ppn) | TLBLO_DIRTY | TLBLO_VALID;
+			tlb_write(ehi, elo, i);
+			count = 1;
+			splx(spl);
+			break;
+		}
+		if(count == 0)
+		{
+			tlb_random(page->vpn, (page->ppn) | TLBLO_DIRTY | TLBLO_VALID);
+			splx(spl);
+		}
+
+		coremap[page->ppn/PAGE_SIZE].state = PAGE_USER;
+		return 0;
 	}
 	lock_acquire(page->pte_lock);
 	//check if a physical page has been allocated, if not, allocate it
@@ -303,14 +323,12 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 			tlb_random(page->vpn, (page->ppn) | TLBLO_DIRTY | TLBLO_VALID);
 			splx(spl);
 		}
+
 		lock_release(page->pte_lock);
 	}
 	else if(page->state == PTE_ON_DISK){
 	 	//swap in the page 
 		paddr_t free_page = alloc_upage(page, WILL_BE_FOLLOWED_BY_SWAPIN);
-		spinlock_acquire(&core_lock);
-		coremap[free_page/PAGE_SIZE].pte_ptr = page;
-		spinlock_release(&core_lock);
 		page->ppn = free_page;
 		KASSERT(coremap[free_page/PAGE_SIZE].pte_ptr == page);
 		swapin(free_page, page);
@@ -479,7 +497,7 @@ paddr_t alloc_upage(struct pte *page_pte, int decision) {
 			e = traverse_end[i];
 			if(e.state == PAGE_FREE) {
 				free_p_page =  PAGE_SIZE*(i); //update physical address too
-				traverse_end[i].state = PAGE_USER;	//can be swapped out in 3.3
+				traverse_end[i].state = PAGE_SWAPPING;	//can be swapped out in 3.3
 				traverse_end[i].chunk_size = 1;	//else its zero
 				traverse_end[i].pte_ptr = page_pte;
 				used_bytes += PAGE_SIZE;
@@ -582,19 +600,16 @@ void swapout(int idx, paddr_t addr, struct pte* old_pte, struct pte* new_pte, in
 		panic("swapout: Couldn't write to disk!");
 	}
 
-	
-	
 	//copy the location to pte of of this page
 	old_pte->disk_offset = offset;
 	
 	
-	spinlock_acquire(&core_lock);	//may have to put this inside the pte lock?
+	//may have to put this inside the pte lock?
 	if(new_pte == NULL)	//alloc_kpages called swapout
 		coremap[idx].state = PAGE_FIXED;
 
 	bzero((void*)(addr + MIPS_KSEG0), PAGE_SIZE);
 	//else, dont change swapping state until swapin completes!
-	spinlock_release(&core_lock);
 	lock_release(old_pte->pte_lock);
 
 	//keep some kind of lock until this point above
