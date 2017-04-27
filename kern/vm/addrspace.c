@@ -44,6 +44,8 @@
 #include <uio.h>
 #include<cpu.h>
 
+int clock_hand;
+
 
 extern vaddr_t firstfree;
 struct spinlock core_lock;
@@ -98,6 +100,7 @@ void vm_bootstrap(void) {
 	map = bitmap_create(swap_stats.st_size/PAGE_SIZE);
 	KASSERT(map != NULL);	//else swapping wont work
 	bitmap_lock = lock_create("bmlock");
+	clock_hand = 0;	//should ideally be first user page. (exclude kernel page always. see ram.c)
 
 }
 
@@ -282,6 +285,9 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 		spl = splhigh();
 		tlb_random(page->vpn, (page->ppn) | TLBLO_DIRTY | TLBLO_VALID);
 		splx(spl);
+		spinlock_acquire(&core_lock);
+		coremap[page->ppn/PAGE_SIZE].color = PTE_GREY;
+		spinlock_release(&core_lock);
 		//release the lock acquired when we find a pte in the page table
 		lock_release(page->pte_lock);
 
@@ -352,6 +358,7 @@ vaddr_t alloc_kpages(unsigned npages) {
 			//return a physical address vaddr corresponding to "marker"
 			// kprintf("Allocating %d pages from %u\n",npages,freepage);
 			bzero((void*)(freepage),PAGE_SIZE);
+			
 			spinlock_release(&core_lock);
 			return freepage;
 		}
@@ -425,13 +432,34 @@ int evict_page(uint32_t max) {
 	}
 	return random_idx;
 */
-	
-	unsigned int howmany = 0;
+ 	//  Round robin
+	// unsigned int howmany = 0;
+	// unsigned int i=(last+1)%max;
+	// for(;howmany<max;i++,howmany++) {
+	// 	if(coremap[i].state == PAGE_USER) {
+	// 		last = i;
+	// 		break;
+	// 	}
+	// 	if(i == max-1) {
+	// 		i=0;
+			
+	// 	}
+	// }
+	// return last;
+
+	//Clock 
 	unsigned int i=(last+1)%max;
-	for(;howmany<max;i++,howmany++) {
+	for(;;i++) {
 		if(coremap[i].state == PAGE_USER) {
-			last = i;
-			break;
+			if(coremap[i].color == PTE_GREY) {
+				coremap[i].color = PTE_GREEN;
+			}
+			else {
+				//found a green slot. Evict this page!
+				last = i;
+				break;
+			}
+
 		}
 		if(i == max-1) {
 			i=0;
@@ -439,6 +467,8 @@ int evict_page(uint32_t max) {
 		}
 	}
 	return last;
+	
+	
 
 }
 
@@ -463,6 +493,7 @@ paddr_t alloc_upage(struct pte *page_pte, int decision) {
 				traverse_end[i].state = PAGE_USER;	//can be swapped out in 3.3
 				traverse_end[i].chunk_size = 1;	//else its zero
 				traverse_end[i].pte_ptr = page_pte;
+				
 				used_bytes += PAGE_SIZE;
 				break;
 			}
@@ -570,8 +601,9 @@ void swapout(int idx, paddr_t addr, struct pte* old_pte, struct pte* new_pte, in
 	
 	
 	spinlock_acquire(&core_lock);	//may have to put this inside the pte lock?
-	if(new_pte == NULL)	//alloc_kpages called swapout
+	if(new_pte == NULL) {	//alloc_kpages called swapout
 		coremap[idx].state = PAGE_FIXED;
+	}
 
 	bzero((void*)(addr + MIPS_KSEG0), PAGE_SIZE);
 	//else, dont change swapping state until swapin completes!
@@ -600,6 +632,7 @@ void swapin(paddr_t free_page, struct pte * page_pte) {
 	 int  spl = splhigh();
      tlb_random(page_pte->vpn, (page_pte->ppn) | TLBLO_DIRTY | TLBLO_VALID);
      splx(spl);		
+	 coremap[page_pte->ppn/PAGE_SIZE].color = PTE_GREY;
 
 	//update state of page in coremap
      

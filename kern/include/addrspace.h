@@ -43,6 +43,9 @@
  #define WILL_BE_FOLLOWED_BY_SWAPIN 1
  #define WILL_NOT_BE_FOLLOWED_BY_SWAPIN 2
 
+ #define PTE_GREY 0
+ #define PTE_GREEN 1
+
 
 #include <vm.h>
 #include "opt-dumbvm.h"
@@ -88,12 +91,14 @@ extern struct vnode *swap_file;
     off_t disk_offset;
     struct pte *next;
     struct lock* pte_lock;
+
  };
 
 struct core_entry {
  	unsigned int state;
  	int chunk_size;
 	struct pte *pte_ptr;
+    int color;
 };
 struct addrspace {
 #if OPT_DUMBVM
