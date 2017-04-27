@@ -179,16 +179,18 @@ struct pte* create_pte(vaddr_t faultaddress, struct addrspace *as)
 	new_pte->disk_offset = -1;
 	new_pte->pte_lock = lock_create("pte_lock");
 
-	lock_acquire(new_pte->pte_lock);
+	// lock_acquire(new_pte->pte_lock);
 	paddr_t new_p_page = alloc_upage(new_pte, WILL_BE_FOLLOWED_BY_SWAPIN);
-	
+	new_pte->ppn = trim_physical(new_p_page);
 	spinlock_acquire(&core_lock);
 	coremap[new_p_page/PAGE_SIZE].pte_ptr = new_pte;
+	coremap[new_p_page/PAGE_SIZE].state = PAGE_USER;
+
 	spinlock_release(&core_lock);
 
 	KASSERT(new_p_page != (paddr_t)NULL);
 	KASSERT(coremap[new_p_page/PAGE_SIZE].pte_ptr == new_pte);
-	new_pte->ppn = trim_physical(new_p_page);
+	
 
 	struct pte *mover = as->page_table;
 	if(mover==NULL) {
@@ -200,12 +202,11 @@ struct pte* create_pte(vaddr_t faultaddress, struct addrspace *as)
 			mover = mover->next;
 
 			}
+		lock_acquire(mover->pte_lock);
 		mover->next = new_pte;
+		lock_release(mover->pte_lock);
 	}
 //	lock_acquire(new_pte->pte_lock);	//acquire lock immediately after creation so that the later code can run atomically without allowing hthis page to bedestroyed
-	spinlock_acquire(&core_lock);
-	coremap[new_p_page/PAGE_SIZE].state = PAGE_USER;
-	spinlock_release(&core_lock);
 	return new_pte;
 }
 
@@ -381,6 +382,8 @@ vaddr_t alloc_kpages(unsigned npages) {
 			coremap[idx].state = PAGE_SWAPPING;
 			coremap[idx].chunk_size = 1;
 			coremap[idx].pte_ptr = NULL;	
+
+
 			
 			spinlock_release(&core_lock);	
 
@@ -449,19 +452,23 @@ int evict_page(uint32_t max) {
 
 	//Clock 
 	unsigned int i=(last+1)%max;
-	for(;;i++) {
-		if(coremap[i].state == PAGE_USER) {
-			if(coremap[i].color == PTE_GREY) {
+	for(;;i++) 
+	{
+		if(coremap[i].state == PAGE_USER) 
+		{
+			if(coremap[i].color == PTE_GREY) 
+			{
 				coremap[i].color = PTE_GREEN;
 			}
-			else {
+			else 
+			{
 				//found a green slot. Evict this page!
 				last = i;
 				break;
 			}
-
 		}
-		if(i == max-1) {
+		if(i == max-1) 
+		{
 			i=0;
 			
 		}
@@ -509,16 +516,19 @@ paddr_t alloc_upage(struct pte *page_pte, int decision) {
 			struct pte *old_pte = coremap[idx].pte_ptr;
 			KASSERT(old_pte != NULL);	
 			KASSERT(coremap[evicted_paddr/PAGE_SIZE].pte_ptr == old_pte);	
-			KASSERT(old_pte->ppn == evicted_paddr);	//only if the page is  in memory should we perform this basic check
+			KASSERT(old_pte->ppn == evicted_paddr);
 			
 			coremap[idx].state = PAGE_SWAPPING;
 			coremap[idx].chunk_size = 1;
-			//coremap[idx].pte_ptr = page_pte;		//new_pte now owns this physical frame. If alloc_kpages calls swapout, new_pte will be NULL which is correct - there is no pte for a kernel allocation
+			coremap[idx].pte_ptr = page_pte;		//new_pte now owns this physical frame. If alloc_kpages calls swapout, new_pte will be NULL which is correct - there is no pte for a kernel allocation
+
+			page_pte->ppn = evicted_paddr;
 
 			//4/23: if a curcpu->spinlock ASSERT fails, then move this lock block below the spinlock_release OR acquire this lock right before spinlock_acquire(make sure to release it at all points though..esp the break statements!)
 			
 			
 			spinlock_release(&core_lock);
+
 
 			lock_acquire(old_pte->pte_lock);
 			old_pte->state = PTE_ON_DISK;
@@ -594,15 +604,22 @@ void swapout(int idx, paddr_t addr, struct pte* old_pte, struct pte* new_pte, in
 		panic("swapout: Couldn't write to disk!");
 	}
 
-	
+	//KASSERT(new_pte->ppn == addr);	//if this fails, overwrite new_pte ->ppn with adr.
+
 	
 	//copy the location to pte of of this page
 	old_pte->disk_offset = offset;
 	
 	
 	spinlock_acquire(&core_lock);	//may have to put this inside the pte lock?
+
+	// KASSERT(coremap[idx].pte_ptr == new_pte);		//if this fails, overwrite
+
 	if(new_pte == NULL) {	//alloc_kpages called swapout
 		coremap[idx].state = PAGE_FIXED;
+	}
+	else {
+		coremap[idx].pte_ptr = new_pte;
 	}
 
 	bzero((void*)(addr + MIPS_KSEG0), PAGE_SIZE);
