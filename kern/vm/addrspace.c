@@ -846,6 +846,7 @@ as_destroy(struct addrspace *as)
 				mover2 = mover1->next;
 				//free physical page
 				free_upage( mover1->ppn);
+				lock_destroy(mover1->pte_lock);
 				kfree(mover1);
 				mover1 = mover2;
 			}
