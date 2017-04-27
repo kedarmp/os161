@@ -279,12 +279,31 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 	//check if a physical page has been allocated, if not, allocate it
 	if(page->state == PTE_IN_MEMORY) {
 		//UPDATE TLB
-		spl = splhigh();
-		tlb_random(page->vpn, (page->ppn) | TLBLO_DIRTY | TLBLO_VALID);
-		splx(spl);
-		//release the lock acquired when we find a pte in the page table
-		lock_release(page->pte_lock);
 
+		uint32_t ehi,elo;
+		spl = splhigh();
+		int count = 0;
+
+		for(int i=0; i<NUM_TLB; i++) 
+		{
+			tlb_read(&ehi, &elo, i);
+			if (elo & TLBLO_VALID) 
+			{
+				continue;
+			}
+			ehi = page->vpn;
+			elo = (page->ppn) | TLBLO_DIRTY | TLBLO_VALID;
+			tlb_write(ehi, elo, i);
+			count = 1;
+			splx(spl);
+			break;
+		}
+		if(count == 0)
+		{
+			tlb_random(page->vpn, (page->ppn) | TLBLO_DIRTY | TLBLO_VALID);
+			splx(spl);
+		}
+		lock_release(page->pte_lock);
 	}
 	else if(page->state == PTE_ON_DISK){
 	 	//swap in the page 
@@ -594,20 +613,37 @@ void swapin(paddr_t free_page, struct pte * page_pte) {
 		panic("swapin: Couldn't read from  disk!");
 	}
 	page_pte->state = PTE_IN_MEMORY;
-	spinlock_acquire(&core_lock);
+	
+	int spl;
+	uint32_t ehi,elo;
+	spl = splhigh();
+	int count = 0;
 
-	//Load the TLB
-	 int  spl = splhigh();
-     tlb_random(page_pte->vpn, (page_pte->ppn) | TLBLO_DIRTY | TLBLO_VALID);
-     splx(spl);		
-
-	//update state of page in coremap
+	for(int i=0; i<NUM_TLB; i++) 
+	{
+		tlb_read(&ehi, &elo, i);
+		if (elo & TLBLO_VALID) 
+		{
+			continue;
+		}
+		ehi = page_pte->vpn;
+		elo = (page_pte->ppn) | TLBLO_DIRTY | TLBLO_VALID;
+		tlb_write(ehi, elo, i);
+		count = 1;
+		splx(spl);
+		break;
+	}
+	if(count == 0)
+	{
+		tlb_random(page_pte->vpn, (page_pte->ppn) | TLBLO_DIRTY | TLBLO_VALID);
+		splx(spl);
+	}
      
 	
 	KASSERT(coremap[free_page/PAGE_SIZE].pte_ptr == page_pte);
-
+	//spinlock_acquire(&core_lock);
 	coremap[free_page/PAGE_SIZE].state = PAGE_USER;
-	spinlock_release(&core_lock);
+	//spinlock_release(&core_lock);
 	lock_release(page_pte->pte_lock);
     //release the lock acquired in swapout(when a vM-fault occured)
 
