@@ -769,6 +769,7 @@ as_destroy(struct addrspace *as)
 {
 	if(SWAP_ENABLED == 1)
 	{
+		return;
 		if(as!=NULL) {
 		//deallocate a_regions linkedlist
 		if(as->a_regions != NULL) {
