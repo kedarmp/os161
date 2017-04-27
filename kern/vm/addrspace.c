@@ -767,6 +767,7 @@ as_create(void)
 void
 as_destroy(struct addrspace *as)
 {
+	return;
 	if(as!=NULL) {
 		//deallocate a_regions linkedlist
 		if(as->a_regions != NULL) {
