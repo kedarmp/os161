@@ -767,8 +767,9 @@ as_create(void)
 void
 as_destroy(struct addrspace *as)
 {
-	return;
-	if(as!=NULL) {
+	if(SWAP_ENABLED == 1)
+	{
+		if(as!=NULL) {
 		//deallocate a_regions linkedlist
 		if(as->a_regions != NULL) {
 			struct region * mover1 = as->a_regions;
@@ -816,6 +817,41 @@ as_destroy(struct addrspace *as)
 			}
 		}
 		kfree(as);
+		}
+	}
+	else
+	{
+		if(as!=NULL) {
+		//deallocate a_regions linkedlist
+		if(as->a_regions != NULL) {
+			struct region * mover1 = as->a_regions;
+			struct region *mover2 = NULL;
+			while(mover1!=NULL) {
+				mover2 = mover1->next;
+				kfree(mover1);
+				mover1 = mover2;
+			}
+		}
+		//deallocate stack and heap regions
+		if(as->stack_region!=NULL)
+			kfree(as->stack_region);
+		if(as->heap_region!=NULL)		//where to call free_upage?
+			kfree(as->heap_region);
+
+		//deallocate page table
+		if(as->page_table != NULL) {
+			struct pte *mover1 = as->page_table;
+			struct pte *mover2 = NULL;
+			while(mover1 != NULL) {
+				mover2 = mover1->next;
+				//free physical page
+				free_upage( mover1->ppn);
+				kfree(mover1);
+				mover1 = mover2;
+			}
+		}
+		kfree(as);
+	}
 	}
 }
 
