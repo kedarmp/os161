@@ -406,8 +406,6 @@ vaddr_t alloc_kpages(unsigned npages) {
 			
 			KASSERT(old_pte->ppn == evicted_paddr);	//only if the page is  in memory should we perform this basic check
 			
-
-
 			coremap[idx].state = PAGE_SWAPPING;
 			coremap[idx].chunk_size = 1;
 			coremap[idx].pte_ptr = NULL;	
@@ -519,7 +517,7 @@ paddr_t alloc_upage(struct pte *page_pte, int decision) {
 			
 			coremap[idx].state = PAGE_SWAPPING;
 			coremap[idx].chunk_size = 1;
-			//coremap[idx].pte_ptr = page_pte;		//new_pte now owns this physical frame. If alloc_kpages calls swapout, new_pte will be NULL which is correct - there is no pte for a kernel allocation
+			coremap[idx].pte_ptr = page_pte;		//new_pte now owns this physical frame. If alloc_kpages calls swapout, new_pte will be NULL which is correct - there is no pte for a kernel allocation
 
 			//4/23: if a curcpu->spinlock ASSERT fails, then move this lock block below the spinlock_release OR acquire this lock right before spinlock_acquire(make sure to release it at all points though..esp the break statements!)
 			
