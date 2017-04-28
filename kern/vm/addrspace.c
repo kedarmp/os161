@@ -190,11 +190,8 @@ struct pte* create_pte(vaddr_t faultaddress, struct addrspace *as)
 		as->page_table = new_pte; 
 	}
 	else {
-		while(mover->next!=NULL) {
-			mover = mover->next;
-
-			}
-		mover->next = new_pte;
+		new_pte->next = as->page_table;
+		as->page_table = new_pte;
 	}
 //	lock_acquire(new_pte->pte_lock);	//acquire lock immediately after creation so that the later code can run atomically without allowing hthis page to bedestroyed
 	return new_pte;
@@ -423,7 +420,7 @@ vaddr_t alloc_kpages(unsigned npages) {
 				old_pte->pte_lock = NULL;
 				kfree(old_pte);
 			}
-			
+
 			return (vaddr_t)(MIPS_KSEG0 + evicted_paddr); 
 			}
 			else {
