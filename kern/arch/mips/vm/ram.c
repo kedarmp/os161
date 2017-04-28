@@ -102,6 +102,7 @@ ram_bootstrap(void)
 			e.chunk_size = 0;	
 		}
 		e.pte_ptr = NULL;
+		e.color = PTE_GREEN;
 		traverse[i] = e;
 	}	
 
@@ -124,6 +125,7 @@ ram_bootstrap(void)
 			e.chunk_size = coremap_pages;
 		} 
 		e.pte_ptr = NULL;
+		e.color = PTE_GREEN;
 		traverse[i+j] = e;	
 	}
 	i += j;
@@ -134,6 +136,7 @@ ram_bootstrap(void)
 		e.state = PAGE_FREE;
 		e.chunk_size = 0;
 		e.pte_ptr = NULL;
+		e.color = PTE_GREEN;
 		//put struct in physical mem
 		traverse[i] = e;
 		//traverse++;

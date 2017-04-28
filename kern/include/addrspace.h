@@ -56,6 +56,9 @@
 #define PTE_IN_MEMORY 2     //for 3.2 we'll have all pages in MEMORY
 #define PTE_UNASSIGNED 3  //physical page is not assigned to such a virtual page
 
+#define PTE_GREEN 0
+#define PTE_GREY 1
+
 struct vnode;
 
 
@@ -95,6 +98,7 @@ struct core_entry {
  	unsigned int state;
  	int chunk_size;
 	struct pte *pte_ptr;
+    int color;
 };
 struct addrspace {
 #if OPT_DUMBVM

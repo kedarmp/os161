@@ -79,12 +79,12 @@ int read_to_disk(paddr_t targetaddr, off_t disk_offset);
 
 int SWAP_ENABLED;
 
-int last;
+int clock_hand;
 
 void vm_bootstrap(void) {
 	//initialize bitmap
 
-	last = existing_pages_used;
+	clock_hand = existing_pages_used;
 	SWAP_ENABLED = 0;
 	//Try to open swap file and see its size..?
 	char swapfile[] = "lhd0raw:";
@@ -293,7 +293,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 			tlb_random(page->vpn, (page->ppn) | TLBLO_DIRTY | TLBLO_VALID);
 			splx(spl);
 		}
-
+		coremap[page->ppn/PAGE_SIZE].color = PTE_GREY;
 		coremap[page->ppn/PAGE_SIZE].state = PAGE_USER;
 		return 0;
 	}
@@ -325,7 +325,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 			tlb_random(page->vpn, (page->ppn) | TLBLO_DIRTY | TLBLO_VALID);
 			splx(spl);
 		}
-
+		coremap[page->ppn/PAGE_SIZE].color = PTE_GREY;
 		lock_release(page->pte_lock);
 	}
 	else if(page->state == PTE_ON_DISK){
@@ -456,6 +456,7 @@ void free_kpages(vaddr_t addr) {
 			coremap[index+i].state = PAGE_FREE;
 			coremap[index+i].chunk_size = 0;
 			coremap[index].pte_ptr = NULL;
+
 		}	
 	}
 	spinlock_release(&core_lock);
@@ -472,19 +473,41 @@ int evict_page(uint32_t max) {
 */
 	
 
-	unsigned int howmany = 0;
-	unsigned int i=(last+1)%max;
-	for(;howmany<max;i++,howmany++) {
+	// unsigned int howmany = 0;
+	// unsigned int i=(last+1)%max;
+	// for(;howmany<max;i++,howmany++) {
+	// 	if(coremap[i].state == PAGE_USER) {
+	// 		last = i;
+	// 		break;
+	// 	}
+	// 	if(i == max-1) {
+	// 		i=existing_pages_used;
+			
+	// 	}
+	// }
+	// return last;
+
+	//Clock
+
+	unsigned int i=(clock_hand+1)%max;
+	for(;;i++) {
 		if(coremap[i].state == PAGE_USER) {
-			last = i;
-			break;
+			if(coremap[i].color == PTE_GREY) {
+				coremap[i].color = PTE_GREEN;
+			}
+			else {
+				//found a green slot. Evict this page!
+				clock_hand = i;
+				break;
+			}
+
 		}
 		if(i == max-1) {
 			i=existing_pages_used;
 			
 		}
 	}
-	return last;
+	return clock_hand;
 
 }
 
@@ -573,6 +596,7 @@ void free_upage(paddr_t addr) {
 		coremap[index].state = PAGE_FREE;
 		coremap[index].chunk_size = 0;
 		coremap[index].pte_ptr = NULL;
+		coremap[index].color = PTE_GREEN;
 	}
 	spinlock_release(&core_lock);
 }
@@ -673,6 +697,7 @@ void swapin(paddr_t free_page, struct pte * page_pte) {
 	KASSERT(coremap[free_page/PAGE_SIZE].pte_ptr == page_pte);
 	//spinlock_acquire(&core_lock);
 	coremap[free_page/PAGE_SIZE].state = PAGE_USER;
+	coremap[free_page/PAGE_SIZE].color = PTE_GREY;
 	//spinlock_release(&core_lock);
 	lock_release(page_pte->pte_lock);
     //release the lock acquired in swapout(when a vM-fault occured)
@@ -994,7 +1019,7 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 		//this kassert fails (sometimes?) Perhaps it is because we access the cm out of the splock. But why?
 		
 		coremap[pte_new->ppn/PAGE_SIZE].state = PAGE_USER;
-
+		coremap[pte_new->ppn/PAGE_SIZE].color = PTE_GREY;
 		lock_release(pte_old->pte_lock);
 		pte_old = pte_old->next;
 		mover = pte_new;
