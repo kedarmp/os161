@@ -198,7 +198,6 @@ struct pte* create_pte(vaddr_t faultaddress, struct addrspace *as)
 			}
 		mover->next = new_pte;
 	}
-//	lock_acquire(new_pte->pte_lock);	//acquire lock immediately after creation so that the later code can run atomically without allowing hthis page to bedestroyed
 	return new_pte;
 }
 
