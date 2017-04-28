@@ -42,7 +42,7 @@
 #include <stat.h>
 #include <bitmap.h>
 #include <uio.h>
-#include<cpu.h>
+#include <cpu.h>
 
 
 extern vaddr_t firstfree;
@@ -475,7 +475,6 @@ int evict_page(uint32_t max) {
 		}
 		if(i == max-1) {
 			i=0;
-			
 		}
 	}
 	return last;
