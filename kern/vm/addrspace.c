@@ -922,16 +922,23 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 
 
 	while(pte_old!=NULL) {
-		lock_acquire(pte_old->pte_lock);
-		if(pte_old->state == PTE_IN_MEMORY) {
-		spinlock_acquire(&core_lock);
-		coremap[pte_old->ppn/PAGE_SIZE].state = PAGE_COPYING;
-		spinlock_release(&core_lock);
-		}
+		
 		struct pte *pte_new = kmalloc(sizeof(struct pte));
 		if(pte_new == NULL) {
 			return ENOMEM;
 		}
+		pte_new->next = NULL;
+		pte_new->vpn = pte_old->vpn;
+		pte_new->state = PTE_IN_MEMORY;
+		pte_new->disk_offset = -1;
+		pte_new->pte_lock = lock_create("ascopy_pte_lock");
+
+		paddr_t new_p_page= alloc_upage(pte_new, WILL_BE_FOLLOWED_BY_SWAPIN);
+		if(new_p_page==(paddr_t)NULL) {
+			return ENOMEM;
+		}
+		pte_new->ppn = trim_physical(new_p_page);
+
 		if(newas->page_table == NULL) {
 			newas->page_table = pte_new;
 		}
@@ -939,49 +946,30 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 			mover->next = pte_new;
 		}
 
-		pte_new->next = NULL;
-		pte_new->vpn = pte_old->vpn;
-		pte_new->state = PTE_IN_MEMORY;
-		pte_new->disk_offset = -1;
-		pte_new->pte_lock = lock_create("ascopy_pte_lock");
-		
-		//allocate new physical page for this pte. This will lock the PTE (need to manually release the lock after copying is done)
-		paddr_t new_p_page= alloc_upage(pte_new, WILL_BE_FOLLOWED_BY_SWAPIN);
-		spinlock_acquire(&core_lock);
-		coremap[new_p_page/PAGE_SIZE].pte_ptr = pte_new;
-		spinlock_release(&core_lock);
-//		KASSERT(coremap[new_p_page/PAGE_SIZE].pte_ptr == pte_new);
-//this kassert fails (sometimes?) Perhaps it is because we access the cm out of the splock. But why?
-		if(new_p_page==(paddr_t)NULL) {
-			return ENOMEM;
-		}
-		pte_new->ppn = trim_physical(new_p_page);
-		//copy contents of old physical page to new physical page
-		
-		if(pte_old->state == PTE_ON_DISK)
+		lock_acquire(pte_old->pte_lock);
+
+		if(pte_old->state == PTE_IN_MEMORY) 
 		{
+			//we need to make sure that the page corr to pte_old is NOT swapped out!
+			memmove((void *)(MIPS_KSEG0 + pte_new->ppn),(const void*)(MIPS_KSEG0 + pte_old->ppn),PAGE_SIZE);
+		}
+		else
+		{
+			//copy contents of old physical page to new physical page
 			int err = read_to_disk(pte_new->ppn, pte_old->disk_offset);
 			if(err) 
 			{
 				panic("ASCOPY: Couldn't read from disk!");
-			}
+			}	
 		}
-		else
-		{
-			//we need to make sure that the page corr to pte_old is NOT swapped out!
-			memmove((void *)(MIPS_KSEG0 + pte_new->ppn),(const void*)(MIPS_KSEG0 + pte_old->ppn),PAGE_SIZE);
-			spinlock_acquire(&core_lock);
-			coremap[pte_old->ppn/PAGE_SIZE].state = PAGE_USER;
-			spinlock_release(&core_lock);	
-		}
+
+		//allocate new physical page for this pte. This will lock the PTE (need to manually release the lock after copying is done)
+		//KASSERT(coremap[new_p_page/PAGE_SIZE].pte_ptr == pte_new);
+		//this kassert fails (sometimes?) Perhaps it is because we access the cm out of the splock. But why?
 		
-		spinlock_acquire(&core_lock);
 		coremap[pte_new->ppn/PAGE_SIZE].state = PAGE_USER;
-		spinlock_release(&core_lock);
 
 		lock_release(pte_old->pte_lock);
-		
-		
 		pte_old = pte_old->next;
 		mover = pte_new;
 	}
