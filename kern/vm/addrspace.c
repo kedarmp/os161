@@ -416,6 +416,14 @@ vaddr_t alloc_kpages(unsigned npages) {
 			old_pte->state = PTE_ON_DISK;
 			// lock_release(old_pte->pte_lock);
 			swapout(idx, evicted_paddr, old_pte, NULL, WILL_NOT_BE_FOLLOWED_BY_SWAPIN);
+
+			if(old_pte->destroy == 1)
+			{
+				lock_destroy(old_pte->pte_lock);//NOTE: what happens to someone who has done an acquire on this lock?
+				old_pte->pte_lock = NULL;
+				kfree(old_pte);
+			}
+			
 			return (vaddr_t)(MIPS_KSEG0 + evicted_paddr); 
 			}
 			else {
@@ -528,7 +536,13 @@ paddr_t alloc_upage(struct pte *page_pte, int decision) {
 			old_pte->state = PTE_ON_DISK;
 			// lock_release(old_pte->pte_lock);
 			swapout(idx, evicted_paddr, old_pte, page_pte, decision);
-			
+
+			if(old_pte->destroy == 1)
+			{
+				lock_destroy(old_pte->pte_lock);//NOTE: what happens to someone who has done an acquire on this lock?
+				old_pte->pte_lock = NULL;
+				kfree(old_pte);
+			}
 			//spinlock_release(&core_lock);	
 			return evicted_paddr;
 			}
@@ -809,7 +823,14 @@ as_destroy(struct addrspace *as)
 				//free physical page
 				if(mover1->state == PTE_IN_MEMORY) {
 
-					free_upage(mover1->ppn);
+					if(coremap[mover1->ppn/PAGE_SIZE].state == PAGE_SWAPPING)
+					{
+						mover1->destroy = 1;
+					}
+					else
+					{
+						free_upage(mover1->ppn);
+					}
 //If its PAGE_USER, then it nobody has swapped us out. if its swapping, then it's not our page anymore anyway. It cannot be anything else(fixed/copying/free) since we own it actively.
 //					free_upage( mover1->ppn);
 				}
@@ -823,9 +844,13 @@ as_destroy(struct addrspace *as)
 					panic("Invalid PTE state!\n");
 				}
 				lock_release(mover1->pte_lock);
-				lock_destroy(mover1->pte_lock);//NOTE: what happens to someone who has done an acquire on this lock?
-				mover1->pte_lock = NULL;
-				kfree(mover1);
+
+				if(mover1->destroy != 1)
+				{
+					lock_destroy(mover1->pte_lock);//NOTE: what happens to someone who has done an acquire on this lock?
+					mover1->pte_lock = NULL;
+					kfree(mover1);
+				}
 				mover1 = mover2;
 			}
 		}

@@ -88,6 +88,7 @@ extern struct vnode *swap_file;
     off_t disk_offset;
     struct pte *next;
     struct lock* pte_lock;
+    int destroy;
  };
 
 struct core_entry {
