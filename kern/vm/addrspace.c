@@ -61,6 +61,7 @@ unsigned int used_bytes;
 int total_pages;
 struct lock *bitmap_lock;
 
+int existing_pages_used;
 
 void update_heap(struct addrspace *as, vaddr_t new_heap_start);
 int check_valid_seg(vaddr_t faultaddress ,struct addrspace *as);
@@ -78,11 +79,12 @@ int read_to_disk(paddr_t targetaddr, off_t disk_offset);
 
 int SWAP_ENABLED;
 
-int last = -1;
+int last;
 
 void vm_bootstrap(void) {
 	//initialize bitmap
 
+	last = existing_pages_used;
 	SWAP_ENABLED = 0;
 	//Try to open swap file and see its size..?
 	char swapfile[] = "lhd0raw:";
@@ -469,6 +471,7 @@ int evict_page(uint32_t max) {
 	return random_idx;
 */
 	
+
 	unsigned int howmany = 0;
 	unsigned int i=(last+1)%max;
 	for(;howmany<max;i++,howmany++) {
@@ -477,7 +480,7 @@ int evict_page(uint32_t max) {
 			break;
 		}
 		if(i == max-1) {
-			i=0;
+			i=existing_pages_used;
 			
 		}
 	}

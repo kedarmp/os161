@@ -39,6 +39,8 @@ vaddr_t firstfree;   /* first free virtual address; set by start.S */
 static paddr_t firstpaddr;  /* address of first free physical page */
 static paddr_t lastpaddr;   /* one past end of last free physical page */
 
+int existing_pages_used;
+
 struct spinlock core_lock;
 
 /*
@@ -85,7 +87,7 @@ ram_bootstrap(void)
 
 	struct core_entry* traverse = coremap;
 	//set up first few entries in coremap as fixed (these correspond to the initial kernel entries already present)
-	int existing_pages_used = (int)((firstfree - MIPS_KSEG0)/PAGE_SIZE);
+	existing_pages_used = (int)((firstfree - MIPS_KSEG0)/PAGE_SIZE);
 	int i = 0,j=0;
 	for(;i<existing_pages_used;i++) {
 
